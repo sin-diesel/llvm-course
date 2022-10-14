@@ -2,22 +2,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <GL/glut.h>
 #include "graphics_interface.h"
 
-void logic_loop() {
-    while(1) {
-        printf("In logic loop\n");
-        sleep(10);
-    }
-}
 
-int main() {
+int main(int argc, char** argv) {
 
-    pthread_t logic_thread;
-    int ret = pthread_create(&logic_thread, NULL, logic_loop, NULL);
-    if (ret < 0) {
-        perrro("Error creating logic thread\n");
-    }
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+    glutInitWindowSize(SIZE_X, SIZE_Y);
+    glutInitWindowPosition(100, 100);
+    glutCreateWindow("Game of life");
+    glClearColor(0, 0, 0, 0);
+    glutDisplayFunc(display);
+    glutMainLoop();
 
     return 0;
 }
