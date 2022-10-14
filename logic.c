@@ -3,11 +3,9 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
+
 #include "graphics_interface.h"
-
-#define INITIAL_CELLS_NUM 20
-
-void init_game();
+#include "logic.h"
 
 void display() {
     
