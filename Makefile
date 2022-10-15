@@ -6,4 +6,4 @@ all: $(SOURCES)
 	gcc $^ -o gol $(GL)
 
 llvm: logic.c
-	clang  -emit-llvm $^ -o
+	clang $^  -S -emit-llvm -o logic.ll

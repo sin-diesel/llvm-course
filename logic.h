@@ -2,7 +2,7 @@
 
 #include "graphics_interface.h"
 
-#define INITIAL_CELLS_NUM 12000
+#define INITIAL_CELLS_NUM 20000
 
 void init_game();
 
