@@ -91,8 +91,8 @@ void game_update() {
     rgb_t black = {0, 0, 0};
     rgb_t green = {0, 255, 0};
 
-    for (int x = 0; x < SIZE_X - 1; x += 2) {
-        for (int y = 0; y < SIZE_Y - 1; y += 2) {
+    for (int x = 0; x < SIZE_X - 1; x++) {
+        for (int y = 0; y < SIZE_Y - 1; y++) {
 
             int position = (x + y * SIZE_X) * 3;
             int up = (x + (y + 1) * SIZE_X) * 3;
