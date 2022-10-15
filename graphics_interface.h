@@ -3,6 +3,8 @@
 #define SIZE_X 800
 #define SIZE_Y 600
 
+extern unsigned int board_data[SIZE_X * SIZE_Y * 3];
+
 struct rgb_t {
 
     int r;

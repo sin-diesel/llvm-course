@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <GL/glut.h>
+#include "logic.h"
 #include "graphics_interface.h"
 
 
@@ -14,6 +15,7 @@ int main(int argc, char** argv) {
     glutInitWindowPosition(100, 100);
     glutCreateWindow("Game of life");
     glClearColor(0, 0, 0, 0);
+    init_game();
     glutDisplayFunc(display);
     glutMainLoop();
 

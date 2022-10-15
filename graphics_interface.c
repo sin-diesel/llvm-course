@@ -9,7 +9,6 @@ unsigned int board_data[SIZE_X * SIZE_Y * 3];
 void board_put_pixel(int x, int y, rgb_t rgb) {
 
     int position = (x + y * SIZE_X) * 3;
-    printf("position: %d\n", position);
     board_data[position] = rgb.r;
     board_data[position + 1] = rgb.g;
     board_data[position + 2] = rgb.b;
