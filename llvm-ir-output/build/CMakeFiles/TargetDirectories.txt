@@ -1,0 +1,6 @@
+/home/stanislav/llvm-course/llvm-practice/llvm-ir-output/build/CMakeFiles/rebuild_cache.dir
+/home/stanislav/llvm-course/llvm-practice/llvm-ir-output/build/CMakeFiles/gen.dir
+/home/stanislav/llvm-course/llvm-practice/llvm-ir-output/build/CMakeFiles/acc_gen.dir
+/home/stanislav/llvm-course/llvm-practice/llvm-ir-output/build/CMakeFiles/edit_cache.dir
+/home/stanislav/llvm-course/llvm-practice/llvm-ir-output/build/CMakeFiles/omp_gen.dir
+/home/stanislav/llvm-course/llvm-practice/llvm-ir-output/build/CMakeFiles/intrinsics_gen.dir
