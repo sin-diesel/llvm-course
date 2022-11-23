@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include "graphics_interface.h"
 
-
 unsigned int board_data[SIZE_X * SIZE_Y * 3];
 
 void board_put_pixel(int x, int y, rgb_t rgb) {
@@ -22,6 +21,19 @@ void board_flush() {
     glutSwapBuffers();
     glutPostRedisplay();
 
+}
+
+
+void init_window(int argc, char** argv) {
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+    glutInitWindowSize(SIZE_X, SIZE_Y);
+    glutInitWindowPosition(100, 100);
+    glutCreateWindow("Game of life");
+    glClearColor(0, 0, 0, 0);
+    init_game();
+    glutDisplayFunc(display);
+    glutMainLoop();
 }
 
 

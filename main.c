@@ -9,15 +9,7 @@
 
 int main(int argc, char** argv) {
 
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-    glutInitWindowSize(SIZE_X, SIZE_Y);
-    glutInitWindowPosition(100, 100);
-    glutCreateWindow("Game of life");
-    glClearColor(0, 0, 0, 0);
-    init_game();
-    glutDisplayFunc(display);
-    glutMainLoop();
+    init_window();
 
     return 0;
 }

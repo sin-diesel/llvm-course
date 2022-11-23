@@ -21,3 +21,5 @@ void board_flush();
 
 void display();
 
+void init_window();
+

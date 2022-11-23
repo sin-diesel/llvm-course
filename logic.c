@@ -5,6 +5,16 @@
 #include <stdio.h>
 #include <string.h>
 
+// #include <llvm/IR/IRBuilder.h>
+// #include <llvm/IR/LLVMContext.h>
+// #include <llvm/IR/Module.h>
+
+// #include <llvm/ExecutionEngine/ExecutionEngine.h>
+// #include <llvm/ExecutionEngine/GenericValue.h>
+// #include <llvm/ExecutionEngine/Interpreter.h>
+
+// #include <llvm/Support/TargetSelect.h>
+
 #include "graphics_interface.h"
 #include "logic.h"
 
@@ -24,7 +34,6 @@ void init_game() {
         int cell_x = rand() % SIZE_X;
         int cell_y = rand() % SIZE_Y;
 
-        printf("cell x, y: %d %d\n", cell_x, cell_y);
 
         rgb_t rgb;
         rgb.r = 0;

@@ -1,0 +1,4 @@
+/home/stanislav/llvm-course/glang/CMakeFiles/rebuild_cache.dir
+/home/stanislav/llvm-course/glang/CMakeFiles/edit_cache.dir
+/home/stanislav/llvm-course/glang/CMakeFiles/glang.dir
+/home/stanislav/llvm-course/glang/CMakeFiles/intrinsics_gen.dir
