@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
-project(llvm-project)
+project(grammar)
 
 find_package(LLVM REQUIRED CONFIG)
+
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 set(CMAKE_C_COMPILER clang++)
@@ -14,7 +15,6 @@ execute_process(COMMAND llvm-config-10 --libs all
                 OUTPUT_VARIABLE LLVM_LIBS2
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-
 llvm_map_components_to_libnames(
     llvm_libs
     support
@@ -23,6 +23,5 @@ llvm_map_components_to_libnames(
     ExecutionEngine
 )
 
-# Link against LLVM libraries
-add_executable(glang lex.yy.c grammar.tab.c)
-target_link_libraries(glang ${LLVM_LIBS2})
+add_executable(compile lex.yy.c grammar.tab.c)
+target_link_libraries(compile ${LLVM_LIBS2})

@@ -91,91 +91,77 @@ extern "C" {
     }
     int yywrap(void){return 1;}
 }
-int whilecounter = 0;
 
 llvm::LLVMContext context;
 llvm::IRBuilder<>* builder;
 llvm::Module* module;
-llvm::Function *curFunc;
-std::vector<std::vector<std::pair<llvm::Value*, llvm::Value*>>> peremens;
-typedef struct {
-    llvm::GlobalVariable* irVal;
-    int realVal;
-} value_t;
-std::map<std::string, value_t> ValueMap;
-std::stack<llvm::BasicBlock *> whileCondBB;
-std::stack<llvm::BasicBlock *> whileFalseBB;
-std::stack<llvm::Value* > forcount;
+llvm::Function *func_cur;
+std::vector<std::vector<std::pair<llvm::Value*, llvm::Value*>>> variables;
+llvm::BasicBlock * gcondF;
 
 typedef struct {
-    llvm::GlobalVariable* irVal;
+    llvm::GlobalVariable* val_ir;
+    int val_real;
+} value_t;
+
+std::map<std::string, value_t> value_map;
+std::stack<llvm::BasicBlock *> BB_while_cond;
+std::stack<llvm::BasicBlock *> BB_while_false;
+std::stack<llvm::Value* > for_counter;
+
+typedef struct {
+    llvm::GlobalVariable* val_ir;
     int size;
-    int initVal;
-    int* realVal;
+    int val_init;
+    int* val_real;
 } array_t;
-std::map<std::string, array_t> ArrayMap;
-std::stack<int> FuncParams;
-std::stack<std::vector<llvm::Value *>> FuncParamsV;
-std::map<std::string, llvm::BasicBlock *> BBMap;
+
+typedef struct {
+    llvm::GlobalVariable* val_ir;
+    int sizei;
+    int sizej;
+    int val_init;
+    int* val_real;
+} array2_t;
+
+std::map<std::string, array_t> array_map;
+std::map<std::string, array2_t> array2_map;
+
+std::stack<int> func_params_count;
+std::stack<std::vector<llvm::Value *>> func_params_val;
+std::map<std::string, llvm::BasicBlock *> BB_map;
 
 int main(int argc, char **argv)
 {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
-    // ; ModuleID = 'top'
-    // source_filename = "top"
-    module = new llvm::Module("top", context);
+
+    module = new llvm::Module("noname", context);
     builder = new llvm::IRBuilder<> (context);
+
+    llvm::FunctionType *funcType = llvm::FunctionType::get(builder->getVoidTy(), false);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "_Z12window_clearv", module);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "_Z11check_eventv", module);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "_Z5flushv", module);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "_Z8int_randv", module);
+
+    funcType = llvm::FunctionType::get(builder->getVoidTy(), builder->getInt32Ty(), false);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "print", module);
+
+    funcType = llvm::FunctionType::get(builder->getVoidTy(), {builder->getInt32Ty(), builder->getInt32Ty()}, false);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "_Z11init_windowjj", module);
+
+    funcType = llvm::FunctionType::get(builder->getVoidTy(), {builder->getInt32Ty(), builder->getInt32Ty(), builder->getInt32Ty()}, false);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "put_pixel", module);
 
     yyparse();
 
-    llvm::outs() << "#[LLVM IR]:\n";
+    llvm::outs() << ";#[LLVM IR]:\n";
     module->print(llvm::outs(), nullptr);
-
-
-    //return 0;
-
-
-    // Interpreter of LLVM IR
-    llvm::outs() << "Running code...\n";
-	llvm::ExecutionEngine *ee = llvm::EngineBuilder(std::unique_ptr<llvm::Module>(module)).create();
-
-    for (auto& value : ValueMap) {
-        ee->addGlobalMapping(value.second.irVal, &value.second.realVal);
-    }
-    for (auto& array : ArrayMap) {
-        array.second.realVal = new int[array.second.size];
-        for (int i = 0; i < array.second.size; i++) {
-            array.second.realVal[i] = array.second.initVal;
-        }
-        ee->addGlobalMapping(array.second.irVal, array.second.realVal);
-    }
-
-    ee->finalizeObject();
-	std::vector<llvm::GenericValue> noargs;
-    llvm::Function *mainFunc = module->getFunction("main");
-    if (mainFunc == nullptr) {
-	    llvm::outs() << "Can't find main\n";
-        return -1;
-    }
-	ee->runFunction(mainFunc, noargs);
-	llvm::outs() << "Code was run.\n";
-
-    for (auto& value : ValueMap) {
-        llvm::outs() << value.first << " = " <<  value.second.realVal << "\n";
-    }
-    for (auto& array : ArrayMap) {
-        llvm::outs() << array.first << "[" << array.second.size << "] =";
-        for (int i = 0; i < array.second.size; i++) {
-            llvm::outs() << " " << array.second.realVal[i];
-        }
-        llvm::outs() << "\n";
-        delete array.second.realVal;
-    }
     return 0;
 }
 
-#line 179 "grammar.tab.c"
+#line 165 "grammar.tab.c"
 
 # ifndef YY_CAST
 #  ifdef __cplusplus
@@ -223,15 +209,36 @@ extern int yydebug;
 # define YYTOKENTYPE
   enum yytokentype
   {
-    IntLiteral = 258,
-    Identifier = 259,
-    IfToken = 260,
-    WhileToken = 261,
-    ForToken = 262,
-    From = 263,
-    To = 264,
-    Type = 265,
-    returntoken = 266
+    TINTEGER = 258,
+    TIDENTIFIER = 259,
+    TIF = 260,
+    TWHILE = 261,
+    TFOR = 262,
+    TSTART = 263,
+    TFINISH = 264,
+    TTYPE = 265,
+    TRETURN = 266,
+    TEQUAL = 267,
+    TCEQ = 268,
+    TCNE = 269,
+    TCLT = 270,
+    TCLE = 271,
+    TCGT = 272,
+    TCGE = 273,
+    TLPAREN = 274,
+    TRPAREN = 275,
+    TLBRACE = 276,
+    TRBRACE = 277,
+    TDOT = 278,
+    TCOMMA = 279,
+    TGOTO = 280,
+    WINDOW_CLEAR = 281,
+    CHECK_EVENT = 282,
+    FLUSH = 283,
+    GEN_RAND = 284,
+    INIT_WINDOW = 285,
+    PUT_PIXEL = 286,
+    PRINT = 287
   };
 #endif
 
@@ -348,7 +355,7 @@ typedef int yytype_uint16;
 #define YYSIZEOF(X) YY_CAST (YYPTRDIFF_T, sizeof (X))
 
 /* Stored state numbers (used for stacks). */
-typedef yytype_int8 yy_state_t;
+typedef yytype_uint8 yy_state_t;
 
 /* State numbers in computations.  */
 typedef int yy_state_fast_t;
@@ -553,19 +560,19 @@ union yyalloc
 /* YYFINAL -- State number of the termination state.  */
 #define YYFINAL  7
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   149
+#define YYLAST   222
 
 /* YYNTOKENS -- Number of terminals.  */
-#define YYNTOKENS  30
+#define YYNTOKENS  44
 /* YYNNTS -- Number of nonterminals.  */
-#define YYNNTS  22
+#define YYNNTS  32
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  50
+#define YYNRULES  73
 /* YYNSTATES -- Number of states.  */
-#define YYNSTATES  112
+#define YYNSTATES  173
 
 #define YYUNDEFTOK  2
-#define YYMAXUTOK   266
+#define YYMAXUTOK   287
 
 
 /* YYTRANSLATE(TOKEN-NUM) -- Symbol number corresponding to TOKEN-NUM
@@ -580,16 +587,16 @@ static const yytype_int8 yytranslate[] =
        0,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-       2,     2,     2,    22,     2,     2,     2,    29,     2,     2,
-      17,    18,    27,    25,    16,    26,     2,    28,     2,     2,
-       2,     2,     2,     2,     2,     2,     2,     2,     2,    13,
-      23,    12,    24,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,    43,    37,     2,
+       2,     2,    41,    39,     2,    40,     2,    42,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,    36,    33,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-       2,    14,     2,    15,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,    34,     2,    35,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-       2,     2,     2,    19,    21,    20,     2,     2,     2,     2,
+       2,     2,     2,     2,    38,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
@@ -603,19 +610,23 @@ static const yytype_int8 yytranslate[] =
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     1,     2,     3,     4,
-       5,     6,     7,     8,     9,    10,    11
+       5,     6,     7,     8,     9,    10,    11,    12,    13,    14,
+      15,    16,    17,    18,    19,    20,    21,    22,    23,    24,
+      25,    26,    27,    28,    29,    30,    31,    32
 };
 
 #if YYDEBUG
   /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_int16 yyrline[] =
 {
-       0,   124,   124,   126,   127,   128,   129,   132,   140,   152,
-     153,   154,   156,   156,   214,   215,   216,   217,   218,   219,
-     222,   224,   237,   248,   254,   248,   276,   276,   307,   308,
-     309,   310,   311,   312,   313,   314,   315,   317,   318,   319,
-     321,   322,   323,   324,   327,   328,   329,   332,   333,   336,
-     350
+       0,   130,   130,   132,   133,   134,   135,   138,   148,   162,
+     179,   180,   181,   183,   188,   193,   198,   203,   208,   213,
+     218,   227,   235,   235,   263,   264,   265,   266,   267,   268,
+     269,   270,   271,   272,   273,   274,   275,   276,   279,   281,
+     292,   292,   308,   313,   308,   330,   330,   356,   357,   358,
+     359,   361,   362,   363,   364,   365,   366,   367,   368,   370,
+     371,   372,   375,   376,   377,   378,   381,   382,   383,   386,
+     387,   390,   395,   402
 };
 #endif
 
@@ -624,14 +635,18 @@ static const yytype_int16 yyrline[] =
    First, the terminals, then, starting at YYNTOKENS, nonterminals.  */
 static const char *const yytname[] =
 {
-  "$end", "error", "$undefined", "IntLiteral", "Identifier", "IfToken",
-  "WhileToken", "ForToken", "From", "To", "Type", "returntoken", "'='",
-  "';'", "'['", "']'", "','", "'('", "')'", "'{'", "'}'", "'|'", "'!'",
-  "'<'", "'>'", "'+'", "'-'", "'*'", "'/'", "'%'", "$accept", "Parse",
-  "Program", "VariableDeclaration", "Params", "RoutineDeclaration", "$@1",
-  "Statements", "Assignment", "RoutineCall", "IfStatement", "While", "$@2",
-  "$@3", "For", "@4", "Expression", "Simple", "Summand", "Factor",
-  "Primary", "Value", YY_NULLPTR
+  "$end", "error", "$undefined", "TINTEGER", "TIDENTIFIER", "TIF",
+  "TWHILE", "TFOR", "TSTART", "TFINISH", "TTYPE", "TRETURN", "TEQUAL",
+  "TCEQ", "TCNE", "TCLT", "TCLE", "TCGT", "TCGE", "TLPAREN", "TRPAREN",
+  "TLBRACE", "TRBRACE", "TDOT", "TCOMMA", "TGOTO", "WINDOW_CLEAR",
+  "CHECK_EVENT", "FLUSH", "GEN_RAND", "INIT_WINDOW", "PUT_PIXEL", "PRINT",
+  "';'", "'['", "']'", "':'", "'&'", "'|'", "'+'", "'-'", "'*'", "'/'",
+  "'%'", "$accept", "Parse", "PROGRAM", "VARIABLE_DECLARE", "PARAMETERS",
+  "EXT_WINDOW_CLEAR", "EXT_CHECK_EVENT", "EXT_FLUSH", "EXT_INIT_WINDOW",
+  "EXT_PUT_PIXEL", "EXT_PRINT", "LABEL", "GOTO", "ROUTINE_DECLARE", "$@1",
+  "STATEMENTS", "ASSIGNMENT", "ROUTINE_CALL", "IF_STATEMENT", "$@2",
+  "WHILE", "$@3", "$@4", "FOR", "@5", "EXPRESSION", "TEXPRESSION",
+  "SIMPLE", "SUMMAND", "FACTOR", "PRIMARY", "VALUE", YY_NULLPTR
 };
 #endif
 
@@ -641,12 +656,14 @@ static const char *const yytname[] =
 static const yytype_int16 yytoknum[] =
 {
        0,   256,   257,   258,   259,   260,   261,   262,   263,   264,
-     265,   266,    61,    59,    91,    93,    44,    40,    41,   123,
-     125,   124,    33,    60,    62,    43,    45,    42,    47,    37
+     265,   266,   267,   268,   269,   270,   271,   272,   273,   274,
+     275,   276,   277,   278,   279,   280,   281,   282,   283,   284,
+     285,   286,   287,    59,    91,    93,    58,    38,   124,    43,
+      45,    42,    47,    37
 };
 # endif
 
-#define YYPACT_NINF (-97)
+#define YYPACT_NINF (-119)
 
 #define yypact_value_is_default(Yyn) \
   ((Yyn) == YYPACT_NINF)
@@ -660,18 +677,24 @@ static const yytype_int16 yytoknum[] =
      STATE-NUM.  */
 static const yytype_int16 yypact[] =
 {
-      -2,    18,    36,    -2,   -97,   -97,    79,   -97,   -97,   -97,
-      37,    44,    78,    76,    77,    47,    17,   -97,    83,   -97,
-      99,    91,   111,   117,   -97,   119,   -97,   -97,   -97,   118,
-      -8,    24,   -97,   126,    24,   -97,   120,   -97,   -97,   -97,
-     122,    24,    24,   -97,    24,    41,   -97,    62,    28,    38,
-     -97,   -97,   -97,    24,   121,   123,    56,   -97,    24,    75,
-      82,    89,   -97,   124,   133,   127,     8,    20,    26,    26,
-      26,    26,    26,    96,    26,   125,   104,   -97,   -97,   -97,
-      26,   128,    26,    26,    28,    26,    28,    38,    38,   -97,
-     -97,   -97,   -97,    30,   -97,   -97,    28,   134,    28,    28,
-      28,   -97,    26,   129,    53,    23,   -97,   -97,   -97,   -97,
-      57,   -97
+       8,    40,    50,     8,  -119,  -119,    30,  -119,  -119,  -119,
+      52,    43,    60,    32,    72,   -16,    77,  -119,  -119,    85,
+     111,    63,  -119,   118,  -119,   127,  -119,  -119,    90,    41,
+     113,   126,    16,  -119,   151,   123,   153,   139,   140,   142,
+     144,   145,   146,   147,   134,   135,   136,   137,   138,   141,
+    -119,  -119,  -119,   143,  -119,  -119,  -119,   160,  -119,    16,
+      16,  -119,  -119,   -13,    16,   105,  -119,   152,    44,    71,
+      42,  -119,  -119,  -119,    16,   148,   167,   155,   150,    16,
+      16,    16,    16,    16,    16,    16,  -119,  -119,  -119,  -119,
+    -119,  -119,  -119,    16,   158,   149,   159,  -119,  -119,    35,
+      35,    35,    35,    35,    35,   154,   156,    35,    35,    35,
+      35,    35,   164,    35,  -119,  -119,   161,   166,   168,   169,
+     163,   171,   170,   165,  -119,   162,  -119,  -119,    71,    71,
+      71,    71,    71,    71,    16,    16,    42,    42,  -119,  -119,
+    -119,  -119,     1,  -119,  -119,  -119,  -119,    16,    16,  -119,
+    -119,    16,    73,    -2,    -2,  -119,    35,   172,   173,   174,
+    -119,   109,    53,  -119,    16,  -119,  -119,  -119,   179,  -119,
+    -119,   122,  -119
 };
 
   /* YYDEFACT[STATE-NUM] -- Default reduction number in state STATE-NUM.
@@ -680,114 +703,148 @@ static const yytype_int16 yypact[] =
 static const yytype_int8 yydefact[] =
 {
        0,     0,     0,     2,     4,     3,     0,     1,     5,     6,
-       0,     0,     9,     0,     0,     0,     0,     7,     0,    10,
-       0,     0,     0,     0,    12,     0,    11,    14,     8,     0,
-      49,    36,    23,     0,    36,    15,     0,    17,    18,    19,
-       0,    36,    36,    47,    36,     0,    35,     0,    28,    37,
-      40,    44,    48,    36,    49,     0,     0,    16,    36,     0,
-       0,     0,    45,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,     0,     0,     0,     0,     0,    50,    21,    46,
-       0,     0,     0,     0,    31,     0,    33,    38,    39,    41,
-      42,    43,    24,     0,    13,    20,    30,     0,    29,    32,
-      34,    14,     0,     0,     0,     0,    22,    25,    26,    14,
-       0,    27
+       0,    10,     0,     0,     0,     0,     0,     7,    11,     0,
+       0,     0,    22,     0,     8,     0,    24,    12,     0,     0,
+       0,    71,    50,    42,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+      30,    31,    25,     0,    27,    28,    29,     0,     9,    50,
+      50,    20,    69,    71,    50,     0,    58,     0,    47,    51,
+      59,    62,    66,    70,    50,    71,     0,     0,     0,    50,
+      50,    50,    50,    50,    50,    50,    32,    33,    34,    35,
+      36,    37,    26,    50,     0,     0,     0,    67,    40,     0,
+       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,     0,    23,    21,     0,     0,     0,     0,
+       0,     0,     0,     0,    39,    72,    68,    24,    53,    52,
+      54,    55,    56,    57,     0,     0,    60,    61,    63,    64,
+      65,    43,     0,    13,    14,    15,    16,    50,    50,    19,
+      38,    50,     0,    48,    49,    24,     0,     0,     0,     0,
+      41,     0,     0,    17,    50,    73,    44,    45,     0,    24,
+      18,     0,    46
 };
 
   /* YYPGOTO[NTERM-NUM].  */
 static const yytype_int16 yypgoto[] =
 {
-     -97,   -97,   -97,   137,   -97,   138,   -97,   -96,   -97,   -28,
-     -97,   -97,   -97,   -97,   -97,   -97,   -27,   -64,    34,     0,
-      98,   -29
+    -119,  -119,  -119,   177,  -119,  -119,  -119,  -119,  -119,  -119,
+    -119,  -119,  -119,   190,  -119,  -118,  -119,   -28,  -119,  -119,
+    -119,  -119,  -119,  -119,  -119,   -57,   -17,   -70,    12,   -22,
+     157,   -29
 };
 
   /* YYDEFGOTO[NTERM-NUM].  */
-static const yytype_int8 yydefgoto[] =
+static const yytype_int16 yydefgoto[] =
 {
-      -1,     2,     3,     4,    16,     5,    27,    29,    35,    46,
-      37,    38,    53,   101,    39,   109,    47,    48,    49,    50,
-      51,    52
+      -1,     2,     3,     4,    15,    44,    45,    46,    47,    48,
+      49,    50,    51,     5,    26,    29,    52,    66,    54,   127,
+      55,    74,   155,    56,   169,    67,    68,    69,    70,    71,
+      72,    73
 };
 
   /* YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
      positive, shift that token.  If negative, reduce the rule whose
      number is the opposite.  If YYTABLE_NINF, syntax error.  */
-static const yytype_int8 yytable[] =
+static const yytype_uint8 yytable[] =
 {
-      40,    36,    84,    86,    55,   104,    41,    56,     1,    42,
-      93,    43,    54,   110,    59,    60,    96,    61,    98,    99,
-      83,   100,     6,    43,    54,    44,    73,    43,    30,    43,
-      54,    76,    85,    20,    45,    21,     7,    44,   105,   102,
-      13,    44,   108,    44,    43,    54,    45,    14,    68,    69,
-      45,    19,    45,    68,    69,    68,    69,    30,    31,    32,
-      33,    30,    31,    32,    33,    70,    71,    72,    63,    75,
-      89,    90,    91,   107,    63,    40,    36,   111,    65,    66,
-      67,    40,    36,    64,    65,    66,    67,    63,    15,    17,
-      77,    10,    18,    11,    63,    22,    12,    65,    66,    67,
-      78,    63,    87,    88,    65,    66,    67,    79,    63,    23,
-      24,    65,    66,    67,    25,    92,    63,    95,    65,    66,
-      67,    26,    30,    31,    32,    33,    65,    66,    67,    34,
-      54,    74,    28,    57,    58,    41,    80,    81,   103,    82,
-       8,     9,   106,    62,     0,    94,     0,     0,     0,    97
+      57,    53,    94,    95,    19,    76,    59,    96,    20,   152,
+     156,    99,   100,   101,   102,   103,   104,   112,     1,    62,
+      63,    60,   116,   117,   118,   119,   120,   121,   122,   128,
+     129,   130,   131,   132,   133,    64,   123,   161,    62,    75,
+     107,   108,    10,   142,     6,    31,    32,    33,    34,    11,
+       7,   171,    35,    14,    64,    13,    65,    99,   100,   101,
+     102,   103,   104,    16,    12,    17,    36,    37,    38,    39,
+      40,    41,    42,    43,   167,    65,    18,    31,    32,    33,
+      34,   105,   106,   109,   110,   111,   162,   138,   139,   140,
+     157,   158,   107,   108,   159,   160,    24,    25,    36,    37,
+      38,    39,    40,    41,    42,    43,    22,   168,    62,    75,
+     107,   108,    21,    31,    32,    33,    34,   153,   154,   136,
+     137,    23,    27,    57,    53,    30,    31,    32,    33,    34,
+      28,   166,    57,    53,    36,    37,    38,    39,    40,    41,
+      42,    43,    57,    53,   172,    59,    58,    36,    37,    38,
+      39,    40,    41,    42,    43,    75,    77,    78,    79,    80,
+      60,    81,    61,    82,    83,    84,    85,    86,    87,    88,
+      89,    90,    93,    98,    91,   113,    92,   114,   124,   126,
+       8,   143,    60,   115,   125,   141,   144,   147,   145,   146,
+     149,   134,   163,     9,   135,   148,   151,   164,   150,   170,
+       0,     0,     0,     0,     0,     0,     0,     0,     0,   165,
+       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+       0,     0,    97
 };
 
-static const yytype_int8 yycheck[] =
+static const yytype_int16 yycheck[] =
 {
-      29,    29,    66,    67,    33,   101,    14,    34,    10,    17,
-      74,     3,     4,   109,    41,    42,    80,    44,    82,    83,
-      12,    85,     4,     3,     4,    17,    53,     3,     4,     3,
-       4,    58,    12,    16,    26,    18,     0,    17,   102,     9,
-       3,    17,    19,    17,     3,     4,    26,     3,    25,    26,
-      26,     4,    26,    25,    26,    25,    26,     4,     5,     6,
-       7,     4,     5,     6,     7,    27,    28,    29,    12,    13,
-      70,    71,    72,    20,    12,   104,   104,    20,    22,    23,
-      24,   110,   110,    21,    22,    23,    24,    12,    10,    13,
-      15,    12,    15,    14,    12,    12,    17,    22,    23,    24,
-      18,    12,    68,    69,    22,    23,    24,    18,    12,    10,
-      19,    22,    23,    24,     3,    19,    12,    13,    22,    23,
-      24,     4,     4,     5,     6,     7,    22,    23,    24,    11,
-       4,     8,    13,    13,    12,    14,    12,     4,     4,    12,
-       3,     3,    13,    45,    -1,    20,    -1,    -1,    -1,    21
+      29,    29,    59,    60,    20,    34,    19,    64,    24,   127,
+       9,    13,    14,    15,    16,    17,    18,    74,    10,     3,
+       4,    34,    79,    80,    81,    82,    83,    84,    85,    99,
+     100,   101,   102,   103,   104,    19,    93,   155,     3,     4,
+      39,    40,    12,   113,     4,     4,     5,     6,     7,    19,
+       0,   169,    11,    10,    19,     3,    40,    13,    14,    15,
+      16,    17,    18,     3,    34,    33,    25,    26,    27,    28,
+      29,    30,    31,    32,    21,    40,     4,     4,     5,     6,
+       7,    37,    38,    41,    42,    43,   156,   109,   110,   111,
+     147,   148,    39,    40,   151,    22,    33,    34,    25,    26,
+      27,    28,    29,    30,    31,    32,    21,   164,     3,     4,
+      39,    40,    35,     4,     5,     6,     7,   134,   135,   107,
+     108,    10,     4,   152,   152,    35,     4,     5,     6,     7,
+       3,    22,   161,   161,    25,    26,    27,    28,    29,    30,
+      31,    32,   171,   171,    22,    19,    33,    25,    26,    27,
+      28,    29,    30,    31,    32,     4,    33,     4,    19,    19,
+      34,    19,    36,    19,    19,    19,    19,    33,    33,    33,
+      33,    33,    12,    21,    33,     8,    33,    22,    20,    20,
+       3,    20,    34,    33,    35,    21,    20,    24,    20,    20,
+      20,    37,    20,     3,    38,    24,    34,    24,    33,    20,
+      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    35,
+      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
+      -1,    -1,    65
 };
 
   /* YYSTOS[STATE-NUM] -- The (internal number of the) accessing
      symbol of state STATE-NUM.  */
 static const yytype_int8 yystos[] =
 {
-       0,    10,    31,    32,    33,    35,     4,     0,    33,    35,
-      12,    14,    17,     3,     3,    10,    34,    13,    15,     4,
-      16,    18,    12,    10,    19,     3,     4,    36,    13,    37,
-       4,     5,     6,     7,    11,    38,    39,    40,    41,    44,
-      51,    14,    17,     3,    17,    26,    39,    46,    47,    48,
-      49,    50,    51,    42,     4,    51,    46,    13,    12,    46,
-      46,    46,    50,    12,    21,    22,    23,    24,    25,    26,
-      27,    28,    29,    46,     8,    13,    46,    15,    18,    18,
-      12,     4,    12,    12,    47,    12,    47,    48,    48,    49,
-      49,    49,    19,    47,    20,    13,    47,    21,    47,    47,
-      47,    43,     9,     4,    37,    47,    13,    20,    19,    45,
-      37,    20
+       0,    10,    45,    46,    47,    57,     4,     0,    47,    57,
+      12,    19,    34,     3,    10,    48,     3,    33,     4,    20,
+      24,    35,    21,    10,    33,    34,    58,     4,     3,    59,
+      35,     4,     5,     6,     7,    11,    25,    26,    27,    28,
+      29,    30,    31,    32,    49,    50,    51,    52,    53,    54,
+      55,    56,    60,    61,    62,    64,    67,    75,    33,    19,
+      34,    36,     3,     4,    19,    40,    61,    69,    70,    71,
+      72,    73,    74,    75,    65,     4,    75,    33,     4,    19,
+      19,    19,    19,    19,    19,    19,    33,    33,    33,    33,
+      33,    33,    33,    12,    69,    69,    69,    74,    21,    13,
+      14,    15,    16,    17,    18,    37,    38,    39,    40,    41,
+      42,    43,    69,     8,    22,    33,    69,    69,    69,    69,
+      69,    69,    69,    69,    20,    35,    20,    63,    71,    71,
+      71,    71,    71,    71,    37,    38,    72,    72,    73,    73,
+      73,    21,    71,    20,    20,    20,    20,    24,    24,    20,
+      33,    34,    59,    70,    70,    66,     9,    69,    69,    69,
+      22,    59,    71,    20,    24,    35,    22,    21,    69,    68,
+      20,    59,    22
 };
 
   /* YYR1[YYN] -- Symbol number of symbol that rule YYN derives.  */
 static const yytype_int8 yyr1[] =
 {
-       0,    30,    31,    32,    32,    32,    32,    33,    33,    34,
-      34,    34,    36,    35,    37,    37,    37,    37,    37,    37,
-      38,    39,    40,    42,    43,    41,    45,    44,    46,    46,
-      46,    46,    46,    46,    46,    46,    46,    47,    47,    47,
-      48,    48,    48,    48,    49,    49,    49,    50,    50,    51,
-      51
+       0,    44,    45,    46,    46,    46,    46,    47,    47,    47,
+      48,    48,    48,    49,    50,    51,    51,    52,    53,    54,
+      55,    56,    58,    57,    59,    59,    59,    59,    59,    59,
+      59,    59,    59,    59,    59,    59,    59,    59,    60,    61,
+      63,    62,    65,    66,    64,    68,    67,    69,    69,    69,
+      69,    70,    70,    70,    70,    70,    70,    70,    70,    71,
+      71,    71,    72,    72,    72,    72,    73,    73,    73,    74,
+      74,    75,    75,    75
 };
 
   /* YYR2[YYN] -- Number of symbols on the right hand side of rule YYN.  */
 static const yytype_int8 yyr2[] =
 {
-       0,     2,     1,     1,     1,     2,     2,     5,     8,     0,
-       2,     4,     0,    12,     0,     2,     3,     2,     2,     2,
-       4,     4,     7,     0,     0,     7,     0,    10,     1,     4,
-       4,     3,     4,     3,     4,     1,     0,     1,     3,     3,
-       1,     3,     3,     3,     1,     2,     3,     1,     1,     1,
-       4
+       0,     2,     1,     1,     1,     2,     2,     5,     6,     9,
+       0,     2,     4,     4,     4,     4,     4,     6,     8,     4,
+       2,     3,     0,    11,     0,     2,     3,     2,     2,     2,
+       2,     2,     3,     3,     3,     3,     3,     3,     4,     4,
+       0,     6,     0,     0,     7,     0,    10,     1,     4,     4,
+       0,     1,     3,     3,     3,     3,     3,     3,     1,     1,
+       3,     3,     1,     3,     3,     3,     1,     2,     3,     1,
+       1,     1,     4,     7
 };
 
 
@@ -1483,428 +1540,573 @@ yyreduce:
   switch (yyn)
     {
   case 2:
-#line 124 "grammar.y"
+#line 130 "grammar.y"
                {YYACCEPT;}
-#line 1489 "grammar.tab.c"
+#line 1546 "grammar.tab.c"
     break;
 
   case 3:
-#line 126 "grammar.y"
-                            {}
-#line 1495 "grammar.tab.c"
+#line 132 "grammar.y"
+                                    {}
+#line 1552 "grammar.tab.c"
     break;
 
   case 4:
-#line 127 "grammar.y"
-                               {}
-#line 1501 "grammar.tab.c"
+#line 133 "grammar.y"
+                                    {}
+#line 1558 "grammar.tab.c"
     break;
 
   case 5:
-#line 128 "grammar.y"
-                                       {}
-#line 1507 "grammar.tab.c"
+#line 134 "grammar.y"
+                                    {}
+#line 1564 "grammar.tab.c"
     break;
 
   case 6:
-#line 129 "grammar.y"
-                                      {}
-#line 1513 "grammar.tab.c"
+#line 135 "grammar.y"
+                                    {}
+#line 1570 "grammar.tab.c"
     break;
 
   case 7:
-#line 132 "grammar.y"
+#line 138 "grammar.y"
                                                          {
-                                                    printf("Type Identifier '=' IntLiteral ';'\n");
                                                     module->getOrInsertGlobal((char*)yyvsp[-3], builder->getInt32Ty());
+                                                    module->getNamedGlobal((char*)yyvsp[-3])->setLinkage(llvm::GlobalVariable::InternalLinkage);
+                                                    module->getNamedGlobal((char*)yyvsp[-3])->setInitializer(llvm::ConstantInt::get(builder->getInt32Ty(), 0));
+                                                    module->getNamedGlobal((char*)yyvsp[-3])->setConstant(false);
                                                     value_t val;
-                                                    val.irVal = module->getNamedGlobal((char*)yyvsp[-3]);
-                                                    val.realVal = atoi((char*)yyvsp[-1]);
-                                                    ValueMap.insert({(char*)yyvsp[-3], val});
+                                                    val.val_ir = module->getNamedGlobal((char*)yyvsp[-3]);
+                                                    val.val_real = atoi((char*)yyvsp[-1]);
+                                                    value_map.insert({(char*)yyvsp[-3], val});
                                                 }
-#line 1526 "grammar.tab.c"
+#line 1585 "grammar.tab.c"
     break;
 
   case 8:
-#line 140 "grammar.y"
-                                                                           {
-                                                    printf("Identifier '[' IntLiteral ']''=' IntLiteral ';'\n");
-                                                    int size = atoi((char*)yyvsp[-4]);
+#line 148 "grammar.y"
+                                                            {
+                                                    int size = atoi((char*)yyvsp[-2]);
                                                     llvm::ArrayType *arrayType = llvm::ArrayType::get(builder->getInt32Ty(), size);
-                                                    module->getOrInsertGlobal((char*)yyvsp[-6], arrayType);
+                                                    module->getOrInsertGlobal((char*)yyvsp[-4], arrayType);
+                                                    module->getNamedGlobal((char*)yyvsp[-4])->setLinkage(llvm::GlobalVariable::InternalLinkage);
+                                                    module->getNamedGlobal((char*)yyvsp[-4])->setInitializer(module->getNamedGlobal((char*)yyvsp[-4])->getNullValue(arrayType));
+                                                    module->getNamedGlobal((char*)yyvsp[-4])->setConstant(false);
+
                                                     array_t arr;
-                                                    arr.irVal = module->getNamedGlobal((char*)yyvsp[-6]);
-                                                    arr.size = atoi((char*)yyvsp[-4]);
-                                                    arr.initVal = atoi((char*)yyvsp[-1]);
-                                                    ArrayMap.insert({(char*)yyvsp[-6], arr});
+                                                    arr.val_ir = module->getNamedGlobal((char*)yyvsp[-4]);
+                                                    arr.size = size;
+                                                    arr.val_init = 0;
+                                                    array_map.insert({(char*)yyvsp[-4], arr});
                                                 }
-#line 1542 "grammar.tab.c"
+#line 1604 "grammar.tab.c"
     break;
 
   case 9:
-#line 152 "grammar.y"
-                {printf("Type Identifier NULL\n"); FuncParams.push(0);}
-#line 1548 "grammar.tab.c"
+#line 162 "grammar.y"
+                                                                              {
+                                                    int sizei = atoi((char*)yyvsp[-5]);
+                                                    int sizej = atoi((char*)yyvsp[-2]);
+
+                                                    llvm::ArrayType *arrayType = llvm::ArrayType::get(llvm::ArrayType::get(builder->getInt32Ty(), sizej), sizei);
+                                                    module->getOrInsertGlobal((char*)yyvsp[-7], arrayType);
+                                                    module->getNamedGlobal((char*)yyvsp[-7])->setLinkage(llvm::GlobalVariable::InternalLinkage);
+                                                    module->getNamedGlobal((char*)yyvsp[-7])->setInitializer(module->getNamedGlobal((char*)yyvsp[-7])->getNullValue(arrayType));
+                                                    module->getNamedGlobal((char*)yyvsp[-7])->setConstant(false);
+
+                                                    array2_t arr;
+                                                    arr.val_ir = module->getNamedGlobal((char*)yyvsp[-7]);
+                                                    arr.sizei = sizei;
+                                                    arr.sizej = sizej;
+                                                    array2_map.insert({(char*)yyvsp[-7], arr});
+                                                }
+#line 1625 "grammar.tab.c"
     break;
 
   case 10:
-#line 153 "grammar.y"
-                  {printf("Type Identifier");FuncParams.push(1); FuncParamsV.push({yyvsp[0]});}
-#line 1554 "grammar.tab.c"
+#line 179 "grammar.y"
+                                               { func_params_count.push(0); }
+#line 1631 "grammar.tab.c"
     break;
 
   case 11:
-#line 154 "grammar.y"
-                                 {printf("ParamsDecl, Type Identifier"); int k = FuncParams.top(); FuncParams.pop(); FuncParams.push(k+1); FuncParamsV.top().push_back(yyvsp[0]);}
-#line 1560 "grammar.tab.c"
+#line 180 "grammar.y"
+                                               { func_params_count.push(1); func_params_val.push({yyvsp[0]}); }
+#line 1637 "grammar.tab.c"
     break;
 
   case 12:
-#line 156 "grammar.y"
-                                                     {
-                                                    printf("FunctionBegin Identifier ...\n");
-                                                    // declare void @Identifier()
+#line 181 "grammar.y"
+                                               { int k = func_params_count.top(); func_params_count.pop(); func_params_count.push(k+1); func_params_val.top().push_back(yyvsp[0]); }
+#line 1643 "grammar.tab.c"
+    break;
+
+  case 13:
+#line 183 "grammar.y"
+                                                           {
+    auto window_clear = module->getFunction("_Z12window_clearv");
+    builder->CreateCall(window_clear);
+}
+#line 1652 "grammar.tab.c"
+    break;
+
+  case 14:
+#line 188 "grammar.y"
+                                                         {
+    auto check_event = module->getFunction("_Z11check_eventv");
+    builder->CreateCall(check_event);
+}
+#line 1661 "grammar.tab.c"
+    break;
+
+  case 15:
+#line 193 "grammar.y"
+                                             {
+    auto flush = module->getFunction("_Z5flushv");
+    builder->CreateCall(flush);
+}
+#line 1670 "grammar.tab.c"
+    break;
+
+  case 16:
+#line 198 "grammar.y"
+                                                {
+    auto gen_rand = module->getFunction("_Z8int_randv");
+    builder->CreateCall(gen_rand);
+}
+#line 1679 "grammar.tab.c"
+    break;
+
+  case 17:
+#line 203 "grammar.y"
+                                                                           {
+    auto init_window = module->getFunction("_Z11init_windowjj");
+    builder->CreateCall(init_window, {yyvsp[-3], yyvsp[-1]});
+}
+#line 1688 "grammar.tab.c"
+    break;
+
+  case 18:
+#line 208 "grammar.y"
+                                                                                         {
+    auto put_pixel = module->getFunction("put_pixel");
+    builder->CreateCall(put_pixel, {yyvsp[-5], yyvsp[-3], yyvsp[-1]});
+}
+#line 1697 "grammar.tab.c"
+    break;
+
+  case 19:
+#line 213 "grammar.y"
+                                             {
+    auto print = module->getFunction("print");
+    builder->CreateCall(print, yyvsp[-1]);
+}
+#line 1706 "grammar.tab.c"
+    break;
+
+  case 20:
+#line 218 "grammar.y"
+                       {
+                                                    if (BB_map.find((char*)yyvsp[-1]) == BB_map.end()) {
+                                                        BB_map.insert({(char*)yyvsp[-1], llvm::BasicBlock::Create(context, "", func_cur)});
+                                                    }
+                                                    llvm::BasicBlock *BB = BB_map[(char*)yyvsp[-1]];
+                                                    builder->CreateBr(BB);
+                                                    builder->SetInsertPoint(BB);
+}
+#line 1719 "grammar.tab.c"
+    break;
+
+  case 21:
+#line 227 "grammar.y"
+                            {
+                                                    if (BB_map.find((char*)yyvsp[-1]) == BB_map.end()) {
+                                                        BB_map.insert({(char*)yyvsp[-1], llvm::BasicBlock::Create(context, "", func_cur)});
+                                                    }
+                                                    llvm::BasicBlock *BB = BB_map[(char*)yyvsp[-1]];
+                                                    builder->CreateBr(BB);
+}
+#line 1731 "grammar.tab.c"
+    break;
+
+  case 22:
+#line 235 "grammar.y"
+                                                                       {
                                                     llvm::Function *func = module->getFunction((char*)yyvsp[-4]);
                                                     if (func == nullptr) {
                                                         int tt = 0;
-                                                        // char* s = (char*)$4;
-                                                        // printf("s is %s\n", s);
-                                                        // while(s) {
-                                                        //     s = strstr(s, "int");
-                                                        //     tt++;
-                                                        // }
-                                                        tt = FuncParams.top();
+                                                        tt = func_params_count.top();
                                                         std::vector <llvm::Type*> vparams = {};
                                                         for (int ttt = 0; ttt < tt; ttt++)
                                                         {
                                                             vparams.push_back(builder->getInt32Ty());
                                                         }
-                                                        printf("tt is %d\n", tt);
                                                         llvm::FunctionType *funcType;
-                                                        if (strncmp((char*)yyvsp[-5], "int", 3)) 
-                                                            funcType = llvm::FunctionType::get(builder->getInt32Ty(), llvm::ArrayRef<llvm::Type*>(vparams), false);
-                                                        else 
                                                             funcType = llvm::FunctionType::get(builder->getVoidTy(), llvm::ArrayRef<llvm::Type*>(vparams), false);
-
                                                         func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, (char*)yyvsp[-4], module);
                                                     }
-                                                    curFunc = func;
-                                                    // entry:
-                                                    llvm::BasicBlock *entryBB = llvm::BasicBlock::Create(context, "entry", curFunc);
+                                                    func_cur = func;
+                                                    llvm::BasicBlock *entryBB = llvm::BasicBlock::Create(context, "entry", func_cur);
                                                     builder->SetInsertPoint(entryBB);
-                                                    //peremens.push_back()
                                                     std::vector<std::pair<llvm::Value*, llvm::Value*>> pert;
-                                                    for (int ti = 0; ti < FuncParams.top(); ti++){
-                                                        //FuncParamsV.top()[ti] = builder->CreateAlloca(builder->getInt32Ty());
-                                                        //builder->CreateStore(func->getArg(ti), FuncParamsV.top()[ti]);}
-                                                        pert.push_back(std::make_pair(FuncParamsV.top()[ti], func->getArg(ti)));
+                                                    for (int ti = 0; ti < func_params_count.top(); ti++){
+                                                        pert.push_back(std::make_pair(func_params_val.top()[ti], func->getArg(ti)));
                                                     }
-                                                    printf("size PERT is %d\n", pert.size());
-                                                    if (pert.size() > 0)
-                                                        printf("PERT is %s\n", (char*)pert[0].first);
-                                                    peremens.push_back(pert);
-                                                    // FuncParams.pop();
-                                                    // FuncParamsV.pop();
-
-                                                    printf("fbeg succs \n");
+                                                    variables.push_back(pert);
 }
-#line 1612 "grammar.tab.c"
+#line 1759 "grammar.tab.c"
     break;
 
-  case 13:
-#line 202 "grammar.y"
-                                            { 
-                                                    printf("... Statements  Int Function Ret Start\n");
-                                                    //printf("ret is %s\n", (char*)$10 );
-                                                    //auto&& load = builder->CreateLoad($2); 
-                                                    //builder->CreateRet(llvm::ConstantInt::get(builder->getInt32Ty(), 1));
-
-                                                    builder->CreateRet(yyvsp[-2]);
-                                                    printf("... Statements  Int Function Ret End\n");
+  case 23:
+#line 257 "grammar.y"
+                                 {
+                                                    builder->CreateRetVoid();
                                                     }
-#line 1626 "grammar.tab.c"
+#line 1767 "grammar.tab.c"
     break;
 
-  case 15:
-#line 215 "grammar.y"
-                                    {printf("Statements Assignment\n");}
-#line 1632 "grammar.tab.c"
+  case 25:
+#line 264 "grammar.y"
+                                              {}
+#line 1773 "grammar.tab.c"
     break;
 
-  case 16:
-#line 216 "grammar.y"
-                                         {printf("Statements RoutineCall\n");}
-#line 1638 "grammar.tab.c"
+  case 26:
+#line 265 "grammar.y"
+                                              {}
+#line 1779 "grammar.tab.c"
     break;
 
-  case 17:
-#line 217 "grammar.y"
-                                     {printf("Statements IfStatement\n");}
-#line 1644 "grammar.tab.c"
+  case 27:
+#line 266 "grammar.y"
+                                              {}
+#line 1785 "grammar.tab.c"
     break;
 
-  case 18:
-#line 218 "grammar.y"
-                               {printf("Statements While\n");}
-#line 1650 "grammar.tab.c"
+  case 28:
+#line 267 "grammar.y"
+                                              {}
+#line 1791 "grammar.tab.c"
     break;
 
-  case 19:
-#line 219 "grammar.y"
-                             {printf("Statements For\n");}
-#line 1656 "grammar.tab.c"
+  case 29:
+#line 268 "grammar.y"
+                                              {}
+#line 1797 "grammar.tab.c"
     break;
 
-  case 20:
-#line 222 "grammar.y"
-                                     { printf("Value '=' Expression ';'\n"); builder->CreateStore(yyvsp[-1], yyvsp[-3]); }
-#line 1662 "grammar.tab.c"
+  case 30:
+#line 269 "grammar.y"
+                                              {}
+#line 1803 "grammar.tab.c"
     break;
 
-  case 21:
-#line 224 "grammar.y"
-                                           {
-                            printf("routine call started\n");
+  case 31:
+#line 270 "grammar.y"
+                                              {}
+#line 1809 "grammar.tab.c"
+    break;
+
+  case 32:
+#line 271 "grammar.y"
+                                              {}
+#line 1815 "grammar.tab.c"
+    break;
+
+  case 33:
+#line 272 "grammar.y"
+                                              {}
+#line 1821 "grammar.tab.c"
+    break;
+
+  case 34:
+#line 273 "grammar.y"
+                                              {}
+#line 1827 "grammar.tab.c"
+    break;
+
+  case 35:
+#line 274 "grammar.y"
+                                              {}
+#line 1833 "grammar.tab.c"
+    break;
+
+  case 36:
+#line 275 "grammar.y"
+                                              {}
+#line 1839 "grammar.tab.c"
+    break;
+
+  case 37:
+#line 276 "grammar.y"
+                                              {}
+#line 1845 "grammar.tab.c"
+    break;
+
+  case 38:
+#line 279 "grammar.y"
+                                        { builder->CreateStore(yyvsp[-1], yyvsp[-3]);}
+#line 1851 "grammar.tab.c"
+    break;
+
+  case 39:
+#line 281 "grammar.y"
+                                                     {
                             llvm::Function *func = module->getFunction((char*)yyvsp[-3]);
                             if (func == nullptr) {
                                 llvm::FunctionType *funcType = 
                                                         llvm::FunctionType::get(builder->getInt32Ty(), false);
                                 func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, (char*)yyvsp[-3], module);
                             }
-                            yyval = builder->CreateCall(func, yyvsp[-1]);
-                            printf("routine call finished\n");
+                            yyval = builder->CreateCall(func);
 
                         }
-#line 1679 "grammar.tab.c"
+#line 1866 "grammar.tab.c"
     break;
 
-  case 22:
-#line 237 "grammar.y"
-                                                                  {
-                            if (BBMap.find((char*)yyvsp[-3]) == BBMap.end()) {
-                                BBMap.insert({(char*)yyvsp[-3], llvm::BasicBlock::Create(context, (char*)yyvsp[-3], curFunc)});
-                            }
-                            if (BBMap.find((char*)yyvsp[-1]) == BBMap.end()) {
-                                BBMap.insert({(char*)yyvsp[-1], llvm::BasicBlock::Create(context, (char*)yyvsp[-1], curFunc)});
-                            }
-                            llvm::Value *cond = builder->CreateICmpNE(yyvsp[-5], builder->getInt32(0));
-                            builder->CreateCondBr(cond, BBMap[(char*)yyvsp[-3]], BBMap[(char*)yyvsp[-1]]);
+  case 40:
+#line 292 "grammar.y"
+                                     {
+                            llvm::Value *cond = builder->CreateICmpNE(yyvsp[-1], builder->getInt32(0));
+                            auto&& condT = llvm::BasicBlock::Create(context, "", func_cur);
+                            auto&& condF = llvm::BasicBlock::Create(context, "", func_cur);
+                            gcondF = condF;
+                            builder->CreateCondBr(cond, condT, condF);
+                            builder->SetInsertPoint(condT);
+
                         }
-#line 1694 "grammar.tab.c"
-    break;
-
-  case 23:
-#line 248 "grammar.y"
-                   {                    
-                                        printf("WhileToken start\n");
-                                        auto&& condBB = llvm::BasicBlock::Create(context, "", curFunc);
-                                        builder->CreateBr(condBB);
-                                        builder->SetInsertPoint(condBB);
-                                        whileCondBB.push(condBB);
-}
-#line 1706 "grammar.tab.c"
-    break;
-
-  case 24:
-#line 254 "grammar.y"
-                   {
-                                        printf("while expression started\n");
-                                        auto && cond = builder->CreateICmpNE(yyvsp[-1], builder->getInt32(0));
-                                        auto&& falseBB = llvm::BasicBlock::Create(context, "", curFunc);
-                                        auto&& trueBB = llvm::BasicBlock::Create(context, "", curFunc);
-
-                                        builder->CreateCondBr(cond, trueBB, falseBB);
-                                        builder->SetInsertPoint(trueBB);
-
-                                        whileFalseBB.push(falseBB);
-                                        printf("while expression finished\n");
-
-}
-#line 1724 "grammar.tab.c"
-    break;
-
-  case 25:
-#line 266 "grammar.y"
-                   {
-                                        printf("while statements started\n");
-                                        builder->CreateBr(whileCondBB.top());
-                                        builder->SetInsertPoint(whileFalseBB.top());
-                                        whileCondBB.pop();
-                                        whileFalseBB.pop();
-                                        printf("WhileToken finish\n");
-}
-#line 1737 "grammar.tab.c"
-    break;
-
-  case 26:
-#line 276 "grammar.y"
-                                              {                    
-                                        printf("ForToken start\n");
-                                        builder->CreateStore(yyvsp[-3], yyvsp[-5]);
-                                        auto&& condBB = llvm::BasicBlock::Create(context, "", curFunc);
-                                        builder->CreateBr(condBB);
-                                        builder->SetInsertPoint(condBB);
-                                        whileCondBB.push(condBB);
-                                        printf("for expression started\n");
-                                        yyval = builder->CreateLoad(yyvsp[-5]);
-                                        auto && cond = builder->CreateICmpSLT(yyval, yyvsp[-1]);
-                                        auto&& falseBB = llvm::BasicBlock::Create(context, "", curFunc);
-                                        auto&& trueBB = llvm::BasicBlock::Create(context, "", curFunc);
-                                        builder->CreateCondBr(cond, trueBB, falseBB);
-                                        builder->SetInsertPoint(trueBB);
-                                        whileFalseBB.push(falseBB);
-                                        forcount.push(yyvsp[-5]);
-                                        printf("for expression finished\n");
-}
-#line 1760 "grammar.tab.c"
-    break;
-
-  case 27:
-#line 293 "grammar.y"
-                 {
-                                        printf("for statements started\n");
-                                        yyval = builder ->CreateLoad(forcount.top());
-                                        yyval = builder->CreateAdd(yyval, llvm::ConstantInt::get(builder->getInt32Ty(), 1));
-                                        builder->CreateStore(yyval, forcount.top());
-                                        builder->CreateBr(whileCondBB.top());
-                                        builder->SetInsertPoint(whileFalseBB.top());
-                                        whileCondBB.pop();
-                                        whileFalseBB.pop();
-                                        forcount.pop();
-                                        printf("for statements finish\n");
-}
-#line 1777 "grammar.tab.c"
-    break;
-
-  case 29:
-#line 308 "grammar.y"
-                                       { yyval = builder->CreateZExt(builder->CreateICmpNE(yyvsp[-3], yyvsp[0]), builder->getInt32Ty()); }
-#line 1783 "grammar.tab.c"
-    break;
-
-  case 30:
-#line 309 "grammar.y"
-                                       { yyval = builder->CreateZExt(builder->CreateICmpEQ(yyvsp[-3], yyvsp[0]), builder->getInt32Ty()); }
-#line 1789 "grammar.tab.c"
-    break;
-
-  case 31:
-#line 310 "grammar.y"
-                                       { yyval = builder->CreateZExt(builder->CreateICmpSLT(yyvsp[-2], yyvsp[0]), builder->getInt32Ty()); }
-#line 1795 "grammar.tab.c"
-    break;
-
-  case 32:
-#line 311 "grammar.y"
-                                       { yyval = builder->CreateZExt(builder->CreateICmpSLE(yyvsp[-3], yyvsp[0]), builder->getInt32Ty()); }
-#line 1801 "grammar.tab.c"
-    break;
-
-  case 33:
-#line 312 "grammar.y"
-                                       { yyval = builder->CreateZExt(builder->CreateICmpSGT(yyvsp[-2], yyvsp[0]), builder->getInt32Ty()); }
-#line 1807 "grammar.tab.c"
-    break;
-
-  case 34:
-#line 313 "grammar.y"
-                                       { yyval = builder->CreateZExt(builder->CreateICmpSGE(yyvsp[-3], yyvsp[0]), builder->getInt32Ty()); }
-#line 1813 "grammar.tab.c"
-    break;
-
-  case 38:
-#line 318 "grammar.y"
-                                 { yyval = builder->CreateAdd(yyvsp[-2], yyvsp[0]); }
-#line 1819 "grammar.tab.c"
-    break;
-
-  case 39:
-#line 319 "grammar.y"
-                                 { yyval = builder->CreateSub(yyvsp[-2], yyvsp[0]); }
-#line 1825 "grammar.tab.c"
+#line 1880 "grammar.tab.c"
     break;
 
   case 41:
-#line 322 "grammar.y"
-                                  { yyval = builder->CreateMul(yyvsp[-2], yyvsp[0]); }
-#line 1831 "grammar.tab.c"
+#line 301 "grammar.y"
+                    {
+                            builder->CreateBr(gcondF);
+                            builder->SetInsertPoint(gcondF);
+                        }
+#line 1889 "grammar.tab.c"
     break;
 
   case 42:
-#line 323 "grammar.y"
-                                  { yyval = builder->CreateSDiv(yyvsp[-2], yyvsp[0]); }
-#line 1837 "grammar.tab.c"
+#line 308 "grammar.y"
+               {                    
+                        auto&& condBB = llvm::BasicBlock::Create(context, "", func_cur);
+                        builder->CreateBr(condBB);
+                        builder->SetInsertPoint(condBB);
+                        BB_while_cond.push(condBB);
+}
+#line 1900 "grammar.tab.c"
     break;
 
   case 43:
-#line 324 "grammar.y"
-                                  { yyval = builder->CreateSRem(yyvsp[-2], yyvsp[0]); }
-#line 1843 "grammar.tab.c"
+#line 313 "grammar.y"
+                       {
+                        auto && cond = builder->CreateICmpNE(yyvsp[-1], builder->getInt32(0));
+                        auto&& falseBB = llvm::BasicBlock::Create(context, "", func_cur);
+                        auto&& trueBB = llvm::BasicBlock::Create(context, "", func_cur);
+
+                        builder->CreateCondBr(cond, trueBB, falseBB);
+                        builder->SetInsertPoint(trueBB);
+
+                        BB_while_false.push(falseBB);
+
+}
+#line 1916 "grammar.tab.c"
     break;
 
   case 44:
-#line 327 "grammar.y"
-                    { yyval = yyvsp[0]; }
-#line 1849 "grammar.tab.c"
+#line 323 "grammar.y"
+                       {
+                        builder->CreateBr(BB_while_cond.top());
+                        builder->SetInsertPoint(BB_while_false.top());
+                        BB_while_cond.pop();
+                        BB_while_false.pop();
+}
+#line 1927 "grammar.tab.c"
     break;
 
   case 45:
-#line 328 "grammar.y"
-                          { yyval = builder->CreateNeg(yyvsp[0]); }
-#line 1855 "grammar.tab.c"
+#line 330 "grammar.y"
+                                                     {                    
+                                        builder->CreateStore(yyvsp[-3], yyvsp[-5]);
+                                        auto&& condBB = llvm::BasicBlock::Create(context, "", func_cur);
+                                        builder->CreateBr(condBB);
+                                        builder->SetInsertPoint(condBB);
+                                        BB_while_cond.push(condBB);
+                                        yyval = builder->CreateLoad(yyvsp[-5]);
+                                        auto && cond = builder->CreateICmpSLT(yyval, yyvsp[-1]);
+                                        auto&& falseBB = llvm::BasicBlock::Create(context, "", func_cur);
+                                        auto&& trueBB = llvm::BasicBlock::Create(context, "", func_cur);
+                                        builder->CreateCondBr(cond, trueBB, falseBB);
+                                        builder->SetInsertPoint(trueBB);
+                                        BB_while_false.push(falseBB);
+                                        for_counter.push(yyvsp[-5]);
+}
+#line 1947 "grammar.tab.c"
     break;
 
   case 46:
-#line 329 "grammar.y"
-                                 { yyval =yyvsp[-1]; }
-#line 1861 "grammar.tab.c"
-    break;
+#line 344 "grammar.y"
+                     {
+                                        yyval = builder ->CreateLoad(for_counter.top());
+                                        yyval = builder->CreateAdd(yyval, llvm::ConstantInt::get(builder->getInt32Ty(), 1));
+                                        builder->CreateStore(yyval, for_counter.top());
+                                        builder->CreateBr(BB_while_cond.top());
 
-  case 47:
-#line 332 "grammar.y"
-                       { yyval = builder->getInt32(atoi((char*)yyvsp[0])); }
-#line 1867 "grammar.tab.c"
+                                        builder->SetInsertPoint(BB_while_false.top());
+                                        BB_while_cond.pop();
+                                        BB_while_false.pop();
+                                        for_counter.pop();
+}
+#line 1963 "grammar.tab.c"
     break;
 
   case 48:
-#line 333 "grammar.y"
-                    { yyval = builder->CreateLoad(yyvsp[0]); }
-#line 1873 "grammar.tab.c"
+#line 357 "grammar.y"
+                                               { yyval = builder->CreateAnd(yyvsp[-3], yyvsp[0]); }
+#line 1969 "grammar.tab.c"
     break;
 
   case 49:
-#line 336 "grammar.y"
-                        {
-                            if (ValueMap.find((char*)yyvsp[0]) != ValueMap.end()) {
-                                yyval = builder->CreateConstGEP1_32(ValueMap[(char*)yyvsp[0]].irVal, 0);
-                            }
-                            else {
-                                printf("searching %s in local peremens\n", (char*)yyvsp[0]);
-                                for (auto ii:peremens.back()) {
-                                    printf("i1.first is %s\n", (char*)ii.first);
-                                   // printf("i1.second is %d\n", (int)ii.second);
-
-                                    if (strcmp((char*)yyvsp[0], (char*)ii.first), 1) {printf("FOUND\n"); yyval = builder->CreateAlloca(builder->getInt32Ty()); builder->CreateStore(ii.second, yyval); }}
-                                //$$ = *(peremens.end())
-                            }
-                        }
-#line 1892 "grammar.tab.c"
+#line 358 "grammar.y"
+                                               { yyval = builder->CreateOr(yyvsp[-3], yyvsp[0]); }
+#line 1975 "grammar.tab.c"
     break;
 
-  case 50:
-#line 350 "grammar.y"
-                                            {
-                            llvm::ArrayType *arrayType = llvm::ArrayType::get(builder->getInt32Ty(), ArrayMap[(char*)yyvsp[-3]].size);
+  case 52:
+#line 362 "grammar.y"
+                                      { yyval = builder->CreateZExt(builder->CreateICmpNE(yyvsp[-2], yyvsp[0]), builder->getInt32Ty()); }
+#line 1981 "grammar.tab.c"
+    break;
+
+  case 53:
+#line 363 "grammar.y"
+                                      { yyval = builder->CreateZExt(builder->CreateICmpEQ(yyvsp[-2], yyvsp[0]), builder->getInt32Ty()); }
+#line 1987 "grammar.tab.c"
+    break;
+
+  case 54:
+#line 364 "grammar.y"
+                                      { yyval = builder->CreateZExt(builder->CreateICmpSLT(yyvsp[-2], yyvsp[0]), builder->getInt32Ty()); }
+#line 1993 "grammar.tab.c"
+    break;
+
+  case 55:
+#line 365 "grammar.y"
+                                      { yyval = builder->CreateZExt(builder->CreateICmpSLE(yyvsp[-2], yyvsp[0]), builder->getInt32Ty()); }
+#line 1999 "grammar.tab.c"
+    break;
+
+  case 56:
+#line 366 "grammar.y"
+                                      { yyval = builder->CreateZExt(builder->CreateICmpSGT(yyvsp[-2], yyvsp[0]), builder->getInt32Ty()); }
+#line 2005 "grammar.tab.c"
+    break;
+
+  case 57:
+#line 367 "grammar.y"
+                                      { yyval = builder->CreateZExt(builder->CreateICmpSGE(yyvsp[-2], yyvsp[0]), builder->getInt32Ty()); }
+#line 2011 "grammar.tab.c"
+    break;
+
+  case 60:
+#line 371 "grammar.y"
+                                 { yyval = builder->CreateAdd(yyvsp[-2], yyvsp[0]); }
+#line 2017 "grammar.tab.c"
+    break;
+
+  case 61:
+#line 372 "grammar.y"
+                                 { yyval = builder->CreateSub(yyvsp[-2], yyvsp[0]); }
+#line 2023 "grammar.tab.c"
+    break;
+
+  case 63:
+#line 376 "grammar.y"
+                                  { yyval = builder->CreateMul(yyvsp[-2], yyvsp[0]); }
+#line 2029 "grammar.tab.c"
+    break;
+
+  case 64:
+#line 377 "grammar.y"
+                                  { yyval = builder->CreateSDiv(yyvsp[-2], yyvsp[0]); }
+#line 2035 "grammar.tab.c"
+    break;
+
+  case 65:
+#line 378 "grammar.y"
+                                  { yyval = builder->CreateSRem(yyvsp[-2], yyvsp[0]); }
+#line 2041 "grammar.tab.c"
+    break;
+
+  case 66:
+#line 381 "grammar.y"
+                                         { yyval = yyvsp[0]; }
+#line 2047 "grammar.tab.c"
+    break;
+
+  case 67:
+#line 382 "grammar.y"
+                                         { yyval = builder->CreateNeg(yyvsp[0]); }
+#line 2053 "grammar.tab.c"
+    break;
+
+  case 68:
+#line 383 "grammar.y"
+                                         { yyval =yyvsp[-1]; }
+#line 2059 "grammar.tab.c"
+    break;
+
+  case 69:
+#line 386 "grammar.y"
+                     { yyval = builder->getInt32(atoi((char*)yyvsp[0])); }
+#line 2065 "grammar.tab.c"
+    break;
+
+  case 70:
+#line 387 "grammar.y"
+                     { yyval = builder->CreateLoad(yyvsp[0]); }
+#line 2071 "grammar.tab.c"
+    break;
+
+  case 71:
+#line 390 "grammar.y"
+                        {
+                            if (value_map.find((char*)yyvsp[0]) != value_map.end()) {
+                                yyval = builder->CreateConstGEP1_32(value_map[(char*)yyvsp[0]].val_ir, 0);
+                            }
+                        }
+#line 2081 "grammar.tab.c"
+    break;
+
+  case 72:
+#line 395 "grammar.y"
+                                             {
+                            llvm::ArrayType *arrayType = llvm::ArrayType::get(builder->getInt32Ty(), array_map[(char*)yyvsp[-3]].size);
                             std::vector<llvm::Value *> gepArgs;
                             gepArgs.push_back(builder->getInt32(0));
                             gepArgs.push_back(yyvsp[-1]);
-                            yyval = builder->CreateGEP(arrayType, ArrayMap[(char*)yyvsp[-3]].irVal, gepArgs);
+                            yyval = builder->CreateGEP(arrayType, array_map[(char*)yyvsp[-3]].val_ir, gepArgs);
                         }
-#line 1904 "grammar.tab.c"
+#line 2093 "grammar.tab.c"
+    break;
+
+  case 73:
+#line 402 "grammar.y"
+                                                                {
+                            llvm::ArrayType *arrayType = llvm::ArrayType::get(llvm::ArrayType::get(builder->getInt32Ty(), array2_map[(char*)yyvsp[-6]].sizej),array2_map[(char*)yyvsp[-6]].sizei);
+                            std::vector<llvm::Value *> gepArgs;
+                            gepArgs.push_back(builder->getInt32(0));
+                            gepArgs.push_back(yyvsp[-4]);
+                            gepArgs.push_back(yyvsp[-1]);
+                            yyval = builder->CreateGEP(arrayType, array2_map[(char*)yyvsp[-6]].val_ir, gepArgs);
+                        }
+#line 2106 "grammar.tab.c"
     break;
 
 
-#line 1908 "grammar.tab.c"
+#line 2110 "grammar.tab.c"
 
       default: break;
     }
@@ -2136,4 +2338,4 @@ yyreturn:
 #endif
   return yyresult;
 }
-#line 358 "grammar.y"
+#line 411 "grammar.y"

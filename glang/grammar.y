@@ -22,337 +22,390 @@ extern "C" {
     }
     int yywrap(void){return 1;}
 }
-int whilecounter = 0;
 
 llvm::LLVMContext context;
 llvm::IRBuilder<>* builder;
 llvm::Module* module;
-llvm::Function *curFunc;
-std::vector<std::vector<std::pair<llvm::Value*, llvm::Value*>>> peremens;
-typedef struct {
-    llvm::GlobalVariable* irVal;
-    int realVal;
-} value_t;
-std::map<std::string, value_t> ValueMap;
-std::stack<llvm::BasicBlock *> whileCondBB;
-std::stack<llvm::BasicBlock *> whileFalseBB;
-std::stack<llvm::Value* > forcount;
+llvm::Function *func_cur;
+std::vector<std::vector<std::pair<llvm::Value*, llvm::Value*>>> variables;
+llvm::BasicBlock * gcondF;
 
 typedef struct {
-    llvm::GlobalVariable* irVal;
+    llvm::GlobalVariable* val_ir;
+    int val_real;
+} value_t;
+
+std::map<std::string, value_t> value_map;
+std::stack<llvm::BasicBlock *> BB_while_cond;
+std::stack<llvm::BasicBlock *> BB_while_false;
+std::stack<llvm::Value* > for_counter;
+
+typedef struct {
+    llvm::GlobalVariable* val_ir;
     int size;
-    int initVal;
-    int* realVal;
+    int val_init;
+    int* val_real;
 } array_t;
-std::map<std::string, array_t> ArrayMap;
-std::stack<int> FuncParams;
-std::stack<std::vector<llvm::Value *>> FuncParamsV;
-std::map<std::string, llvm::BasicBlock *> BBMap;
+
+typedef struct {
+    llvm::GlobalVariable* val_ir;
+    int sizei;
+    int sizej;
+    int val_init;
+    int* val_real;
+} array2_t;
+
+std::map<std::string, array_t> array_map;
+std::map<std::string, array2_t> array2_map;
+
+std::stack<int> func_params_count;
+std::stack<std::vector<llvm::Value *>> func_params_val;
+std::map<std::string, llvm::BasicBlock *> BB_map;
 
 int main(int argc, char **argv)
 {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
-    // ; ModuleID = 'top'
-    // source_filename = "top"
-    module = new llvm::Module("top", context);
+
+    module = new llvm::Module("noname", context);
     builder = new llvm::IRBuilder<> (context);
+
+    llvm::FunctionType *funcType = llvm::FunctionType::get(builder->getVoidTy(), false);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "_Z12window_clearv", module);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "_Z11check_eventv", module);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "_Z5flushv", module);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "_Z8int_randv", module);
+
+    funcType = llvm::FunctionType::get(builder->getVoidTy(), builder->getInt32Ty(), false);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "print", module);
+
+    funcType = llvm::FunctionType::get(builder->getVoidTy(), {builder->getInt32Ty(), builder->getInt32Ty()}, false);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "_Z11init_windowjj", module);
+
+    funcType = llvm::FunctionType::get(builder->getVoidTy(), {builder->getInt32Ty(), builder->getInt32Ty(), builder->getInt32Ty()}, false);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "put_pixel", module);
 
     yyparse();
 
-    llvm::outs() << "#[LLVM IR]:\n";
+    llvm::outs() << ";#[LLVM IR]:\n";
     module->print(llvm::outs(), nullptr);
-
-
-    //return 0;
-
-
-    // Interpreter of LLVM IR
-    llvm::outs() << "Running code...\n";
-	llvm::ExecutionEngine *ee = llvm::EngineBuilder(std::unique_ptr<llvm::Module>(module)).create();
-
-    for (auto& value : ValueMap) {
-        ee->addGlobalMapping(value.second.irVal, &value.second.realVal);
-    }
-    for (auto& array : ArrayMap) {
-        array.second.realVal = new int[array.second.size];
-        for (int i = 0; i < array.second.size; i++) {
-            array.second.realVal[i] = array.second.initVal;
-        }
-        ee->addGlobalMapping(array.second.irVal, array.second.realVal);
-    }
-
-    ee->finalizeObject();
-	std::vector<llvm::GenericValue> noargs;
-    llvm::Function *mainFunc = module->getFunction("main");
-    if (mainFunc == nullptr) {
-	    llvm::outs() << "Can't find main\n";
-        return -1;
-    }
-	ee->runFunction(mainFunc, noargs);
-	llvm::outs() << "Code was run.\n";
-
-    for (auto& value : ValueMap) {
-        llvm::outs() << value.first << " = " <<  value.second.realVal << "\n";
-    }
-    for (auto& array : ArrayMap) {
-        llvm::outs() << array.first << "[" << array.second.size << "] =";
-        for (int i = 0; i < array.second.size; i++) {
-            llvm::outs() << " " << array.second.realVal[i];
-        }
-        llvm::outs() << "\n";
-        delete array.second.realVal;
-    }
     return 0;
 }
 %}
 
-%token IntLiteral
-%token Identifier
-%token IfToken
-%token WhileToken
-%token ForToken
-%token From
-%token To
-%token Type
-%token returntoken
-
+%token TINTEGER
+%token TIDENTIFIER
+%token TIF
+%token TWHILE
+%token TFOR
+%token TSTART
+%token TFINISH
+%token TTYPE
+%token TRETURN
+%token TEQUAL
+%token TCEQ
+%token TCNE
+%token TCLT
+%token TCLE
+%token TCGT
+%token TCGE
+%token TLPAREN
+%token TRPAREN
+%token TLBRACE
+%token TRBRACE
+%token TDOT
+%token TCOMMA
+%token TGOTO
+%token WINDOW_CLEAR
+%token CHECK_EVENT
+%token FLUSH
+%token GEN_RAND
+%token INIT_WINDOW
+%token PUT_PIXEL
+%token PRINT
 
 
 %%
 
-Parse: Program {YYACCEPT;}
+Parse: PROGRAM {YYACCEPT;}
 
-Program: RoutineDeclaration {}
-         | VariableDeclaration {} 
-         | Program VariableDeclaration {}
-         | Program RoutineDeclaration {}
+PROGRAM: ROUTINE_DECLARE            {}
+         | VARIABLE_DECLARE         {} 
+         | PROGRAM VARIABLE_DECLARE {}
+         | PROGRAM ROUTINE_DECLARE  {}
 
 
-VariableDeclaration : Type Identifier '=' IntLiteral ';' {
-                                                    printf("Type Identifier '=' IntLiteral ';'\n");
+VARIABLE_DECLARE : TTYPE TIDENTIFIER TEQUAL TINTEGER ';' {
                                                     module->getOrInsertGlobal((char*)$2, builder->getInt32Ty());
+                                                    module->getNamedGlobal((char*)$2)->setLinkage(llvm::GlobalVariable::InternalLinkage);
+                                                    module->getNamedGlobal((char*)$2)->setInitializer(llvm::ConstantInt::get(builder->getInt32Ty(), 0));
+                                                    module->getNamedGlobal((char*)$2)->setConstant(false);
                                                     value_t val;
-                                                    val.irVal = module->getNamedGlobal((char*)$2);
-                                                    val.realVal = atoi((char*)$4);
-                                                    ValueMap.insert({(char*)$2, val});
+                                                    val.val_ir = module->getNamedGlobal((char*)$2);
+                                                    val.val_real = atoi((char*)$4);
+                                                    value_map.insert({(char*)$2, val});
                                                 }
-                    | Type Identifier '[' IntLiteral ']''=' IntLiteral ';' {
-                                                    printf("Identifier '[' IntLiteral ']''=' IntLiteral ';'\n");
+                    | TTYPE TIDENTIFIER '[' TINTEGER ']'';' {
                                                     int size = atoi((char*)$4);
                                                     llvm::ArrayType *arrayType = llvm::ArrayType::get(builder->getInt32Ty(), size);
                                                     module->getOrInsertGlobal((char*)$2, arrayType);
+                                                    module->getNamedGlobal((char*)$2)->setLinkage(llvm::GlobalVariable::InternalLinkage);
+                                                    module->getNamedGlobal((char*)$2)->setInitializer(module->getNamedGlobal((char*)$2)->getNullValue(arrayType));
+                                                    module->getNamedGlobal((char*)$2)->setConstant(false);
+
                                                     array_t arr;
-                                                    arr.irVal = module->getNamedGlobal((char*)$2);
-                                                    arr.size = atoi((char*)$4);
-                                                    arr.initVal = atoi((char*)$7);
-                                                    ArrayMap.insert({(char*)$2, arr});
+                                                    arr.val_ir = module->getNamedGlobal((char*)$2);
+                                                    arr.size = size;
+                                                    arr.val_init = 0;
+                                                    array_map.insert({(char*)$2, arr});
+                                                }
+                    | TTYPE TIDENTIFIER '[' TINTEGER ']' '[' TINTEGER ']' ';' {
+                                                    int sizei = atoi((char*)$4);
+                                                    int sizej = atoi((char*)$7);
+
+                                                    llvm::ArrayType *arrayType = llvm::ArrayType::get(llvm::ArrayType::get(builder->getInt32Ty(), sizej), sizei);
+                                                    module->getOrInsertGlobal((char*)$2, arrayType);
+                                                    module->getNamedGlobal((char*)$2)->setLinkage(llvm::GlobalVariable::InternalLinkage);
+                                                    module->getNamedGlobal((char*)$2)->setInitializer(module->getNamedGlobal((char*)$2)->getNullValue(arrayType));
+                                                    module->getNamedGlobal((char*)$2)->setConstant(false);
+
+                                                    array2_t arr;
+                                                    arr.val_ir = module->getNamedGlobal((char*)$2);
+                                                    arr.sizei = sizei;
+                                                    arr.sizej = sizej;
+                                                    array2_map.insert({(char*)$2, arr});
                                                 }
 
-Params : %empty {printf("Type Identifier NULL\n"); FuncParams.push(0);}
-| Type Identifier {printf("Type Identifier");FuncParams.push(1); FuncParamsV.push({$2});}
-    | Params ',' Type Identifier {printf("ParamsDecl, Type Identifier"); int k = FuncParams.top(); FuncParams.pop(); FuncParams.push(k+1); FuncParamsV.top().push_back($4);}
+PARAMETERS : %empty                            { func_params_count.push(0); }
+         | TTYPE TIDENTIFIER                   { func_params_count.push(1); func_params_val.push({$2}); }
+         | PARAMETERS TCOMMA TTYPE TIDENTIFIER { int k = func_params_count.top(); func_params_count.pop(); func_params_count.push(k+1); func_params_val.top().push_back($4); }
 
-RoutineDeclaration : Type Identifier '('Params')''{' {
-                                                    printf("FunctionBegin Identifier ...\n");
-                                                    // declare void @Identifier()
+EXT_WINDOW_CLEAR : WINDOW_CLEAR TLPAREN EXPRESSION TRPAREN {
+    auto window_clear = module->getFunction("_Z12window_clearv");
+    builder->CreateCall(window_clear);
+}
+
+EXT_CHECK_EVENT : CHECK_EVENT TLPAREN EXPRESSION TRPAREN {
+    auto check_event = module->getFunction("_Z11check_eventv");
+    builder->CreateCall(check_event);
+}
+
+EXT_FLUSH : FLUSH TLPAREN EXPRESSION TRPAREN {
+    auto flush = module->getFunction("_Z5flushv");
+    builder->CreateCall(flush);
+}
+
+EXT_FLUSH : GEN_RAND TLPAREN EXPRESSION TRPAREN {
+    auto gen_rand = module->getFunction("_Z8int_randv");
+    builder->CreateCall(gen_rand);
+}
+
+EXT_INIT_WINDOW : INIT_WINDOW TLPAREN EXPRESSION TCOMMA EXPRESSION TRPAREN {
+    auto init_window = module->getFunction("_Z11init_windowjj");
+    builder->CreateCall(init_window, {$3, $5});
+}
+
+EXT_PUT_PIXEL : PUT_PIXEL TLPAREN EXPRESSION TCOMMA EXPRESSION TCOMMA EXPRESSION TRPAREN {
+    auto put_pixel = module->getFunction("put_pixel");
+    builder->CreateCall(put_pixel, {$3, $5, $7});
+}
+
+EXT_PRINT : PRINT TLPAREN EXPRESSION TRPAREN {
+    auto print = module->getFunction("print");
+    builder->CreateCall(print, $3);
+}
+
+LABEL: TIDENTIFIER ':' {
+                                                    if (BB_map.find((char*)$1) == BB_map.end()) {
+                                                        BB_map.insert({(char*)$1, llvm::BasicBlock::Create(context, "", func_cur)});
+                                                    }
+                                                    llvm::BasicBlock *BB = BB_map[(char*)$1];
+                                                    builder->CreateBr(BB);
+                                                    builder->SetInsertPoint(BB);
+}
+
+GOTO: TGOTO TIDENTIFIER ';' {
+                                                    if (BB_map.find((char*)$2) == BB_map.end()) {
+                                                        BB_map.insert({(char*)$2, llvm::BasicBlock::Create(context, "", func_cur)});
+                                                    }
+                                                    llvm::BasicBlock *BB = BB_map[(char*)$2];
+                                                    builder->CreateBr(BB);
+}
+
+ROUTINE_DECLARE : TTYPE TIDENTIFIER TLPAREN PARAMETERS TRPAREN TLBRACE {
                                                     llvm::Function *func = module->getFunction((char*)$2);
                                                     if (func == nullptr) {
                                                         int tt = 0;
-                                                        // char* s = (char*)$4;
-                                                        // printf("s is %s\n", s);
-                                                        // while(s) {
-                                                        //     s = strstr(s, "int");
-                                                        //     tt++;
-                                                        // }
-                                                        tt = FuncParams.top();
+                                                        tt = func_params_count.top();
                                                         std::vector <llvm::Type*> vparams = {};
                                                         for (int ttt = 0; ttt < tt; ttt++)
                                                         {
                                                             vparams.push_back(builder->getInt32Ty());
                                                         }
-                                                        printf("tt is %d\n", tt);
                                                         llvm::FunctionType *funcType;
-                                                        if (strncmp((char*)$1, "int", 3)) 
-                                                            funcType = llvm::FunctionType::get(builder->getInt32Ty(), llvm::ArrayRef<llvm::Type*>(vparams), false);
-                                                        else 
                                                             funcType = llvm::FunctionType::get(builder->getVoidTy(), llvm::ArrayRef<llvm::Type*>(vparams), false);
-
                                                         func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, (char*)$2, module);
                                                     }
-                                                    curFunc = func;
-                                                    // entry:
-                                                    llvm::BasicBlock *entryBB = llvm::BasicBlock::Create(context, "entry", curFunc);
+                                                    func_cur = func;
+                                                    llvm::BasicBlock *entryBB = llvm::BasicBlock::Create(context, "entry", func_cur);
                                                     builder->SetInsertPoint(entryBB);
-                                                    //peremens.push_back()
                                                     std::vector<std::pair<llvm::Value*, llvm::Value*>> pert;
-                                                    for (int ti = 0; ti < FuncParams.top(); ti++){
-                                                        //FuncParamsV.top()[ti] = builder->CreateAlloca(builder->getInt32Ty());
-                                                        //builder->CreateStore(func->getArg(ti), FuncParamsV.top()[ti]);}
-                                                        pert.push_back(std::make_pair(FuncParamsV.top()[ti], func->getArg(ti)));
+                                                    for (int ti = 0; ti < func_params_count.top(); ti++){
+                                                        pert.push_back(std::make_pair(func_params_val.top()[ti], func->getArg(ti)));
                                                     }
-                                                    printf("size PERT is %d\n", pert.size());
-                                                    if (pert.size() > 0)
-                                                        printf("PERT is %s\n", (char*)pert[0].first);
-                                                    peremens.push_back(pert);
-                                                    // FuncParams.pop();
-                                                    // FuncParamsV.pop();
-
-                                                    printf("fbeg succs \n");
-} Statements returntoken Expression ';' '}' { 
-                                                    printf("... Statements  Int Function Ret Start\n");
-                                                    //printf("ret is %s\n", (char*)$10 );
-                                                    //auto&& load = builder->CreateLoad($2); 
-                                                    //builder->CreateRet(llvm::ConstantInt::get(builder->getInt32Ty(), 1));
-
-                                                    builder->CreateRet($10);
-                                                    printf("... Statements  Int Function Ret End\n");
+                                                    variables.push_back(pert);
+} STATEMENTS TRETURN ';' TRBRACE {
+                                                    builder->CreateRetVoid();
                                                     }
 
 
 
-Statements: %empty
-            | Statements Assignment {printf("Statements Assignment\n");}
-            | Statements RoutineCall ';' {printf("Statements RoutineCall\n");}
-            | Statements IfStatement {printf("Statements IfStatement\n");}
-            | Statements While {printf("Statements While\n");}
-            | Statements For {printf("Statements For\n");}
+STATEMENTS: %empty
+            | STATEMENTS ASSIGNMENT           {}
+            | STATEMENTS ROUTINE_CALL ';'     {}
+            | STATEMENTS IF_STATEMENT         {}
+            | STATEMENTS WHILE                {}
+            | STATEMENTS FOR                  {}
+            | STATEMENTS LABEL                {}
+            | STATEMENTS GOTO                 {}
+            | STATEMENTS EXT_WINDOW_CLEAR ';' {}
+            | STATEMENTS EXT_CHECK_EVENT ';'  {}
+            | STATEMENTS EXT_FLUSH ';'        {}
+            | STATEMENTS EXT_INIT_WINDOW ';'  {}
+            | STATEMENTS EXT_PUT_PIXEL ';'    {}
+            | STATEMENTS EXT_PRINT ';'        {}
 
 
-Assignment: Value '=' Expression ';' { printf("Value '=' Expression ';'\n"); builder->CreateStore($3, $1); }
+ASSIGNMENT: VALUE TEQUAL EXPRESSION ';' { builder->CreateStore($3, $1);}
 
-RoutineCall: Identifier '(' Expression ')' {
-                            printf("routine call started\n");
+ROUTINE_CALL: TIDENTIFIER TLPAREN EXPRESSION TRPAREN {
                             llvm::Function *func = module->getFunction((char*)$1);
                             if (func == nullptr) {
                                 llvm::FunctionType *funcType = 
                                                         llvm::FunctionType::get(builder->getInt32Ty(), false);
                                 func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, (char*)$1, module);
                             }
-                            $$ = builder->CreateCall(func, $3);
-                            printf("routine call finished\n");
+                            $$ = builder->CreateCall(func);
 
                         }
 
-IfStatement: IfToken Expression '|' Identifier '|' Identifier ';' {
-                            if (BBMap.find((char*)$4) == BBMap.end()) {
-                                BBMap.insert({(char*)$4, llvm::BasicBlock::Create(context, (char*)$4, curFunc)});
-                            }
-                            if (BBMap.find((char*)$6) == BBMap.end()) {
-                                BBMap.insert({(char*)$6, llvm::BasicBlock::Create(context, (char*)$6, curFunc)});
-                            }
+IF_STATEMENT: TIF EXPRESSION TLBRACE {
                             llvm::Value *cond = builder->CreateICmpNE($2, builder->getInt32(0));
-                            builder->CreateCondBr(cond, BBMap[(char*)$4], BBMap[(char*)$6]);
+                            auto&& condT = llvm::BasicBlock::Create(context, "", func_cur);
+                            auto&& condF = llvm::BasicBlock::Create(context, "", func_cur);
+                            gcondF = condF;
+                            builder->CreateCondBr(cond, condT, condF);
+                            builder->SetInsertPoint(condT);
+
+                        }
+STATEMENTS TRBRACE  {
+                            builder->CreateBr(gcondF);
+                            builder->SetInsertPoint(gcondF);
                         }
 
-While: WhileToken  {                    
-                                        printf("WhileToken start\n");
-                                        auto&& condBB = llvm::BasicBlock::Create(context, "", curFunc);
-                                        builder->CreateBr(condBB);
-                                        builder->SetInsertPoint(condBB);
-                                        whileCondBB.push(condBB);
-} Expression '{'   {
-                                        printf("while expression started\n");
-                                        auto && cond = builder->CreateICmpNE($3, builder->getInt32(0));
-                                        auto&& falseBB = llvm::BasicBlock::Create(context, "", curFunc);
-                                        auto&& trueBB = llvm::BasicBlock::Create(context, "", curFunc);
 
-                                        builder->CreateCondBr(cond, trueBB, falseBB);
-                                        builder->SetInsertPoint(trueBB);
 
-                                        whileFalseBB.push(falseBB);
-                                        printf("while expression finished\n");
+WHILE: TWHILE  {                    
+                        auto&& condBB = llvm::BasicBlock::Create(context, "", func_cur);
+                        builder->CreateBr(condBB);
+                        builder->SetInsertPoint(condBB);
+                        BB_while_cond.push(condBB);
+} EXPRESSION TLBRACE   {
+                        auto && cond = builder->CreateICmpNE($3, builder->getInt32(0));
+                        auto&& falseBB = llvm::BasicBlock::Create(context, "", func_cur);
+                        auto&& trueBB = llvm::BasicBlock::Create(context, "", func_cur);
 
-} Statements '}'   {
-                                        printf("while statements started\n");
-                                        builder->CreateBr(whileCondBB.top());
-                                        builder->SetInsertPoint(whileFalseBB.top());
-                                        whileCondBB.pop();
-                                        whileFalseBB.pop();
-                                        printf("WhileToken finish\n");
+                        builder->CreateCondBr(cond, trueBB, falseBB);
+                        builder->SetInsertPoint(trueBB);
+
+                        BB_while_false.push(falseBB);
+
+} STATEMENTS TRBRACE   {
+                        builder->CreateBr(BB_while_cond.top());
+                        builder->SetInsertPoint(BB_while_false.top());
+                        BB_while_cond.pop();
+                        BB_while_false.pop();
 }
 
-
-For: ForToken Value From Simple To Simple '{' {                    
-                                        printf("ForToken start\n");
+FOR: TFOR VALUE TSTART SIMPLE TFINISH SIMPLE TLBRACE {                    
                                         builder->CreateStore($4, $2);
-                                        auto&& condBB = llvm::BasicBlock::Create(context, "", curFunc);
+                                        auto&& condBB = llvm::BasicBlock::Create(context, "", func_cur);
                                         builder->CreateBr(condBB);
                                         builder->SetInsertPoint(condBB);
-                                        whileCondBB.push(condBB);
-                                        printf("for expression started\n");
+                                        BB_while_cond.push(condBB);
                                         $$ = builder->CreateLoad($2);
                                         auto && cond = builder->CreateICmpSLT($$, $6);
-                                        auto&& falseBB = llvm::BasicBlock::Create(context, "", curFunc);
-                                        auto&& trueBB = llvm::BasicBlock::Create(context, "", curFunc);
+                                        auto&& falseBB = llvm::BasicBlock::Create(context, "", func_cur);
+                                        auto&& trueBB = llvm::BasicBlock::Create(context, "", func_cur);
                                         builder->CreateCondBr(cond, trueBB, falseBB);
                                         builder->SetInsertPoint(trueBB);
-                                        whileFalseBB.push(falseBB);
-                                        forcount.push($2);
-                                        printf("for expression finished\n");
-} Statements '}' {
-                                        printf("for statements started\n");
-                                        $$ = builder ->CreateLoad(forcount.top());
+                                        BB_while_false.push(falseBB);
+                                        for_counter.push($2);
+} STATEMENTS TRBRACE {
+                                        $$ = builder ->CreateLoad(for_counter.top());
                                         $$ = builder->CreateAdd($$, llvm::ConstantInt::get(builder->getInt32Ty(), 1));
-                                        builder->CreateStore($$, forcount.top());
-                                        builder->CreateBr(whileCondBB.top());
-                                        builder->SetInsertPoint(whileFalseBB.top());
-                                        whileCondBB.pop();
-                                        whileFalseBB.pop();
-                                        forcount.pop();
-                                        printf("for statements finish\n");
+                                        builder->CreateStore($$, for_counter.top());
+                                        builder->CreateBr(BB_while_cond.top());
+
+                                        builder->SetInsertPoint(BB_while_false.top());
+                                        BB_while_cond.pop();
+                                        BB_while_false.pop();
+                                        for_counter.pop();
 }
 
+EXPRESSION : TEXPRESSION
+             | TEXPRESSION '&' '&' TEXPRESSION { $$ = builder->CreateAnd($1, $4); }
+             | TEXPRESSION '|' '|' TEXPRESSION { $$ = builder->CreateOr($1, $4); }
+             | %empty
 
-Expression: Simple
-            | Expression '!''=' Simple { $$ = builder->CreateZExt(builder->CreateICmpNE($1, $4), builder->getInt32Ty()); }
-            | Expression '=''=' Simple { $$ = builder->CreateZExt(builder->CreateICmpEQ($1, $4), builder->getInt32Ty()); }
-            | Expression '<'    Simple { $$ = builder->CreateZExt(builder->CreateICmpSLT($1, $3), builder->getInt32Ty()); }
-            | Expression '<''=' Simple { $$ = builder->CreateZExt(builder->CreateICmpSLE($1, $4), builder->getInt32Ty()); }
-            | Expression '>'    Simple { $$ = builder->CreateZExt(builder->CreateICmpSGT($1, $3), builder->getInt32Ty()); }
-            | Expression '>''=' Simple { $$ = builder->CreateZExt(builder->CreateICmpSGE($1, $4), builder->getInt32Ty()); }
-            | RoutineCall
-            | %empty
+TEXPRESSION: SIMPLE
+            | TEXPRESSION TCNE SIMPLE { $$ = builder->CreateZExt(builder->CreateICmpNE($1, $3), builder->getInt32Ty()); }
+            | TEXPRESSION TCEQ SIMPLE { $$ = builder->CreateZExt(builder->CreateICmpEQ($1, $3), builder->getInt32Ty()); }
+            | TEXPRESSION TCLT SIMPLE { $$ = builder->CreateZExt(builder->CreateICmpSLT($1, $3), builder->getInt32Ty()); }
+            | TEXPRESSION TCLE SIMPLE { $$ = builder->CreateZExt(builder->CreateICmpSLE($1, $3), builder->getInt32Ty()); }
+            | TEXPRESSION TCGT SIMPLE { $$ = builder->CreateZExt(builder->CreateICmpSGT($1, $3), builder->getInt32Ty()); }
+            | TEXPRESSION TCGE SIMPLE { $$ = builder->CreateZExt(builder->CreateICmpSGE($1, $3), builder->getInt32Ty()); }
+            | ROUTINE_CALL
 ;
-Simple:     Summand
-            | Simple '+' Summand { $$ = builder->CreateAdd($1, $3); }
-            | Simple '-' Summand { $$ = builder->CreateSub($1, $3); }
+SIMPLE:     SUMMAND
+            | SIMPLE '+' SUMMAND { $$ = builder->CreateAdd($1, $3); }
+            | SIMPLE '-' SUMMAND { $$ = builder->CreateSub($1, $3); }
+            
 
-Summand:    Factor
-            | Summand '*' Factor  { $$ = builder->CreateMul($1, $3); }
-            | Summand '/' Factor  { $$ = builder->CreateSDiv($1, $3); }
-            | Summand '%' Factor  { $$ = builder->CreateSRem($1, $3); }
-;
-
-Factor:     Primary { $$ = $1; }
-            | '-' Primary { $$ = builder->CreateNeg($2); }
-            | '(' Expression ')' { $$ =$2; }
-;
-
-Primary:    IntLiteral { $$ = builder->getInt32(atoi((char*)$1)); }
-            | Value { $$ = builder->CreateLoad($1); }
+SUMMAND:    FACTOR
+            | SUMMAND '*' FACTOR  { $$ = builder->CreateMul($1, $3); }
+            | SUMMAND '/' FACTOR  { $$ = builder->CreateSDiv($1, $3); }
+            | SUMMAND '%' FACTOR  { $$ = builder->CreateSRem($1, $3); }
 ;
 
-Value:      Identifier  {
-                            if (ValueMap.find((char*)$1) != ValueMap.end()) {
-                                $$ = builder->CreateConstGEP1_32(ValueMap[(char*)$1].irVal, 0);
-                            }
-                            else {
-                                printf("searching %s in local peremens\n", (char*)$1);
-                                for (auto ii:peremens.back()) {
-                                    printf("i1.first is %s\n", (char*)ii.first);
-                                   // printf("i1.second is %d\n", (int)ii.second);
+FACTOR:     PRIMARY                      { $$ = $1; }
+            | '-' PRIMARY                { $$ = builder->CreateNeg($2); }
+            | TLPAREN EXPRESSION TRPAREN { $$ =$2; }
+;
 
-                                    if (strcmp((char*)$1, (char*)ii.first), 1) {printf("FOUND\n"); $$ = builder->CreateAlloca(builder->getInt32Ty()); builder->CreateStore(ii.second, $$); }}
-                                //$$ = *(peremens.end())
+PRIMARY:    TINTEGER { $$ = builder->getInt32(atoi((char*)$1)); }
+            | VALUE  { $$ = builder->CreateLoad($1); }
+;
+
+VALUE:      TIDENTIFIER {
+                            if (value_map.find((char*)$1) != value_map.end()) {
+                                $$ = builder->CreateConstGEP1_32(value_map[(char*)$1].val_ir, 0);
                             }
                         }
-            | Identifier '[' Expression ']' {
-                            llvm::ArrayType *arrayType = llvm::ArrayType::get(builder->getInt32Ty(), ArrayMap[(char*)$1].size);
+            | TIDENTIFIER '[' EXPRESSION ']' {
+                            llvm::ArrayType *arrayType = llvm::ArrayType::get(builder->getInt32Ty(), array_map[(char*)$1].size);
                             std::vector<llvm::Value *> gepArgs;
                             gepArgs.push_back(builder->getInt32(0));
                             gepArgs.push_back($3);
-                            $$ = builder->CreateGEP(arrayType, ArrayMap[(char*)$1].irVal, gepArgs);
+                            $$ = builder->CreateGEP(arrayType, array_map[(char*)$1].val_ir, gepArgs);
+                        }
+            | TIDENTIFIER '[' EXPRESSION ']' '[' EXPRESSION ']' {
+                            llvm::ArrayType *arrayType = llvm::ArrayType::get(llvm::ArrayType::get(builder->getInt32Ty(), array2_map[(char*)$1].sizej),array2_map[(char*)$1].sizei);
+                            std::vector<llvm::Value *> gepArgs;
+                            gepArgs.push_back(builder->getInt32(0));
+                            gepArgs.push_back($3);
+                            gepArgs.push_back($6);
+                            $$ = builder->CreateGEP(arrayType, array2_map[(char*)$1].val_ir, gepArgs);
                         }
 
 %%

@@ -111,17 +111,17 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named glang
+# Target rules for targets named compile
 
 # Build rule for target.
-glang: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 glang
-.PHONY : glang
+compile: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 compile
+.PHONY : compile
 
 # fast build rule for target.
-glang/fast:
-	$(MAKE) -f CMakeFiles/glang.dir/build.make CMakeFiles/glang.dir/build
-.PHONY : glang/fast
+compile/fast:
+	$(MAKE) -f CMakeFiles/compile.dir/build.make CMakeFiles/compile.dir/build
+.PHONY : compile/fast
 
 #=============================================================================
 # Target rules for targets named intrinsics_gen
@@ -142,7 +142,7 @@ grammar.tab.o: grammar.tab.c.o
 
 # target to build an object file
 grammar.tab.c.o:
-	$(MAKE) -f CMakeFiles/glang.dir/build.make CMakeFiles/glang.dir/grammar.tab.c.o
+	$(MAKE) -f CMakeFiles/compile.dir/build.make CMakeFiles/compile.dir/grammar.tab.c.o
 .PHONY : grammar.tab.c.o
 
 grammar.tab.i: grammar.tab.c.i
@@ -151,7 +151,7 @@ grammar.tab.i: grammar.tab.c.i
 
 # target to preprocess a source file
 grammar.tab.c.i:
-	$(MAKE) -f CMakeFiles/glang.dir/build.make CMakeFiles/glang.dir/grammar.tab.c.i
+	$(MAKE) -f CMakeFiles/compile.dir/build.make CMakeFiles/compile.dir/grammar.tab.c.i
 .PHONY : grammar.tab.c.i
 
 grammar.tab.s: grammar.tab.c.s
@@ -160,7 +160,7 @@ grammar.tab.s: grammar.tab.c.s
 
 # target to generate assembly for a file
 grammar.tab.c.s:
-	$(MAKE) -f CMakeFiles/glang.dir/build.make CMakeFiles/glang.dir/grammar.tab.c.s
+	$(MAKE) -f CMakeFiles/compile.dir/build.make CMakeFiles/compile.dir/grammar.tab.c.s
 .PHONY : grammar.tab.c.s
 
 lex.yy.o: lex.yy.c.o
@@ -169,7 +169,7 @@ lex.yy.o: lex.yy.c.o
 
 # target to build an object file
 lex.yy.c.o:
-	$(MAKE) -f CMakeFiles/glang.dir/build.make CMakeFiles/glang.dir/lex.yy.c.o
+	$(MAKE) -f CMakeFiles/compile.dir/build.make CMakeFiles/compile.dir/lex.yy.c.o
 .PHONY : lex.yy.c.o
 
 lex.yy.i: lex.yy.c.i
@@ -178,7 +178,7 @@ lex.yy.i: lex.yy.c.i
 
 # target to preprocess a source file
 lex.yy.c.i:
-	$(MAKE) -f CMakeFiles/glang.dir/build.make CMakeFiles/glang.dir/lex.yy.c.i
+	$(MAKE) -f CMakeFiles/compile.dir/build.make CMakeFiles/compile.dir/lex.yy.c.i
 .PHONY : lex.yy.c.i
 
 lex.yy.s: lex.yy.c.s
@@ -187,7 +187,7 @@ lex.yy.s: lex.yy.c.s
 
 # target to generate assembly for a file
 lex.yy.c.s:
-	$(MAKE) -f CMakeFiles/glang.dir/build.make CMakeFiles/glang.dir/lex.yy.c.s
+	$(MAKE) -f CMakeFiles/compile.dir/build.make CMakeFiles/compile.dir/lex.yy.c.s
 .PHONY : lex.yy.c.s
 
 # Help Target
@@ -198,7 +198,7 @@ help:
 	@echo "... depend"
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
-	@echo "... glang"
+	@echo "... compile"
 	@echo "... intrinsics_gen"
 	@echo "... grammar.tab.o"
 	@echo "... grammar.tab.i"

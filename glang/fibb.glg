@@ -1,4 +1,5 @@
 
+// program counting fibb numbers
 
 int idx = 0;
 int arr[30] = 2;

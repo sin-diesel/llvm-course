@@ -1,4 +1,6 @@
-lex l.lex
+#!/bin/bash
+
+l.lex
 bison -d grammar.y
 cmake ./
 make

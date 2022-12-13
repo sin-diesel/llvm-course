@@ -1,0 +1,1 @@
+clang++    CMakeFiles/compile.dir/lex.yy.c.o CMakeFiles/compile.dir/grammar.tab.c.o  -o compile  -lLLVM-10 

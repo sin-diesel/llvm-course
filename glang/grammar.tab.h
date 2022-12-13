@@ -49,15 +49,36 @@ extern int yydebug;
 # define YYTOKENTYPE
   enum yytokentype
   {
-    IntLiteral = 258,
-    Identifier = 259,
-    IfToken = 260,
-    WhileToken = 261,
-    ForToken = 262,
-    From = 263,
-    To = 264,
-    Type = 265,
-    returntoken = 266
+    TINTEGER = 258,
+    TIDENTIFIER = 259,
+    TIF = 260,
+    TWHILE = 261,
+    TFOR = 262,
+    TSTART = 263,
+    TFINISH = 264,
+    TTYPE = 265,
+    TRETURN = 266,
+    TEQUAL = 267,
+    TCEQ = 268,
+    TCNE = 269,
+    TCLT = 270,
+    TCLE = 271,
+    TCGT = 272,
+    TCGE = 273,
+    TLPAREN = 274,
+    TRPAREN = 275,
+    TLBRACE = 276,
+    TRBRACE = 277,
+    TDOT = 278,
+    TCOMMA = 279,
+    TGOTO = 280,
+    WINDOW_CLEAR = 281,
+    CHECK_EVENT = 282,
+    FLUSH = 283,
+    GEN_RAND = 284,
+    INIT_WINDOW = 285,
+    PUT_PIXEL = 286,
+    PRINT = 287
   };
 #endif
 
