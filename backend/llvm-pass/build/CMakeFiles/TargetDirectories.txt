@@ -1,0 +1,8 @@
+/home/stanislav/Study/llvm-course/backend/llvm-pass/build/CMakeFiles/intrinsics_gen.dir
+/home/stanislav/Study/llvm-course/backend/llvm-pass/build/CMakeFiles/omp_gen.dir
+/home/stanislav/Study/llvm-course/backend/llvm-pass/build/CMakeFiles/acc_gen.dir
+/home/stanislav/Study/llvm-course/backend/llvm-pass/build/CMakeFiles/edit_cache.dir
+/home/stanislav/Study/llvm-course/backend/llvm-pass/build/CMakeFiles/rebuild_cache.dir
+/home/stanislav/Study/llvm-course/backend/llvm-pass/build/LoopPrintPass/CMakeFiles/LoopPrintPass.dir
+/home/stanislav/Study/llvm-course/backend/llvm-pass/build/LoopPrintPass/CMakeFiles/edit_cache.dir
+/home/stanislav/Study/llvm-course/backend/llvm-pass/build/LoopPrintPass/CMakeFiles/rebuild_cache.dir
