@@ -36,7 +36,9 @@ namespace {
         outs() << "Loop iterations number is unknown." << "\n";
       } else {
         auto LoopIterNum = getAnalysis<ScalarEvolutionWrapperPass>().getSE().getBackedgeTakenCount(L);
-        outs() << "Loop iterations number: " << LoopIterNum;
+        outs() << "Loop iterations number: ";
+        LoopIterNum->print(outs());
+        outs() << "\n";
       }
     
       return false;
@@ -48,13 +50,7 @@ namespace {
 
 char LoopPrintPass::ID = 0;
 
-// Automatically enable the pass.
-// http://adriansampson.net/blog/clangpass.html
-static void registerLoopPrintPass(const PassManagerBuilder &,
-                                  legacy::PassManagerBase &PM) {
-  PM.add(new LoopPrintPass());
-}
 
-static RegisterStandardPasses
-  RegisterMyPass(PassManagerBuilder::EP_EarlyAsPossible,
-                 registerLoopPrintPass);
+static RegisterPass<LoopPrintPass> X("loopprint", "Loop Print Pass",
+                             false /* Only looks at CFG */,
+                             true /* Analysis Pass */);
